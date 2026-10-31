@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
   const LOCK_MS = 5 * 60 * 1000;
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
@@ -17,6 +17,17 @@
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/></svg>',
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></svg>',
+    focus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9 4.5v15"/></svg>',
+    ul: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg>',
+    ol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 6h10M10 12h10M10 18h10"/><path d="M4 5l1.5-1v5M3.5 13.5a1.5 1.5 0 0 1 3 .2c0 .9-3 2.3-3 3.3h3" stroke-width="1.4"/></svg>',
+    task: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="6" height="6" rx="1.2"/><path d="M5 7l1.2 1.2L8.2 6"/><rect x="3.5" y="14" width="6" height="6" rx="1.2"/><path d="M13 7h8M13 17h8"/></svg>',
+    indent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6h9M11 12h9M11 18h9M4 9l3 3-3 3"/></svg>',
+    outdent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6h9M11 12h9M11 18h9M7 9l-3 3 3 3"/></svg>',
+    quote: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.5 7C6.5 7.6 5 9.7 5 13v4h5v-5H7.6c.2-1.6 1-2.6 2.4-3zM18.5 7c-3 .6-4.5 2.7-4.5 6v4h5v-5h-2.4c.2-1.6 1-2.6 2.4-3z"/></svg>',
+    hr: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3.5 12h17"/><path d="M7 6.5h10M7 17.5h10" stroke-width="1.2" opacity=".5"/></svg>',
+    undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>',
+    redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg>',
+    outline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M8 11h12M8 16h12M4 11h.01M4 16h.01"/></svg>',
     note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h5M9 12h7M9 15.5h7"/></svg>'
   };
 
@@ -188,6 +199,7 @@
     syncSoon();
   }
   async function flush() {
+    commitEditor();
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; queueSave(); }
     await saveChain;
   }
@@ -206,6 +218,9 @@
 
   async function lock() {
     if (!S) return;
+    const cur = ui.current;
+    destroyEditor();
+    if (cur) pruneNote(cur);
     await flush();
     if (driveOn() && G.pending && tokenValid()) {
       try { await Promise.race([syncNow(), new Promise(r => setTimeout(r, 8000))]); } catch { /* sigue */ }
@@ -339,6 +354,7 @@
     $('#lock').replaceChildren();
     $('#app').hidden = false;
     lastActive = Date.now();
+    sweepEmpty();
     buildSidebar();
     renderList();
     showEmpty();
@@ -385,7 +401,7 @@
     }
     list.replaceChildren(...notes.map(n => {
       const trs = (n.transcripts || []).length;
-      const snip = (n.text || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+      const snip = plainSnippet(n.text).slice(0, 160);
       return h('button', { class: 'item' + (n.id === ui.current ? ' active' : ''), onclick: () => openNote(n.id) },
         h('div', { class: 'item-title' + (n.title ? '' : ' untitled'), text: n.title || 'Sin título' }),
         h('div', { class: 'item-meta', text: fmtDate(n.date) + (trs ? ` · ${trs} transcripci${trs === 1 ? 'ón' : 'ones'}` : '') }),
@@ -395,6 +411,80 @@
     }));
   }
   const renderListSoon = debounce(renderList, 300);
+
+  /* ---------- Preferencias de lectura (solo en este dispositivo) ---------- */
+  const PREF = { size: 'm', focus: false };
+  try { Object.assign(PREF, JSON.parse(localStorage.getItem('notas-app-prefs') || '{}')); } catch { /* sin preferencias guardadas */ }
+  const SIZES = [['s', 'Letra chica'], ['m', 'Letra normal'], ['l', 'Letra grande'], ['xl', 'Letra muy grande']];
+  function savePrefs() { try { localStorage.setItem('notas-app-prefs', JSON.stringify(PREF)); } catch { /* sin almacenamiento */ } }
+  function applyPrefs() {
+    document.documentElement.dataset.size = PREF.size;
+    document.body.classList.toggle('focus-mode', !!PREF.focus);
+  }
+  applyPrefs();
+  function cycleSize() {
+    const i = SIZES.findIndex(s => s[0] === PREF.size);
+    const next = SIZES[(i + 1) % SIZES.length];
+    PREF.size = next[0]; savePrefs(); applyPrefs();
+    toast(next[1] + '.', 1500);
+    const ta = $('.tr-text'); if (ta) autosize(ta);
+  }
+  function toggleFocus() {
+    PREF.focus = !PREF.focus; savePrefs(); applyPrefs();
+    const b = $('#focus-btn'); if (b) b.title = PREF.focus ? 'Mostrar la lista de notas' : 'Modo foco: ocultar la lista de notas';
+  }
+
+  /* ---------- Notas vacías ---------- */
+  function noteIsEmpty(n) {
+    return !(n.title || '').trim() && !(n.text || '').trim() && !(n.tags || []).length &&
+      !(n.transcripts || []).some(t => (t.text || '').trim());
+  }
+  // Descarta transcripciones vacías y, si la nota quedó vacía, la borra.
+  function pruneNote(id) {
+    if (!S) return false;
+    const i = S.data.notes.findIndex(n => n.id === id && !n.deleted);
+    if (i < 0) return false;
+    const n = S.data.notes[i];
+    const trs = (n.transcripts || []).filter(t => (t.text || '').trim());
+    if (trs.length !== (n.transcripts || []).length) { n.transcripts = trs; n.updatedAt = Date.now(); scheduleSave(); }
+    if (!noteIsEmpty(n)) return false;
+    if (S.data.syncBase && S.data.syncBase[id]) S.data.notes[i] = { id, deleted: true, updatedAt: Date.now() };
+    else S.data.notes.splice(i, 1);
+    scheduleSave();
+    return true;
+  }
+  function sweepEmpty() { for (const n of liveNotes()) if (n.id !== ui.current) pruneNote(n.id); }
+
+  function plainSnippet(md) {
+    return (md || '')
+      .replace(/^\s{0,3}(#{1,6}|>|[-*+]\s\[[ xX]\]|[-*+]|\d+[.)])\s+/gm, '')
+      .replace(/^\s*([-*_]\s*){3,}$/gm, '')
+      .replace(/[*_~`]+/g, '')
+      .replace(/\\([\\`*_{}\[\]()#+\-.!>])/g, '$1')
+      .replace(/\s+/g, ' ').trim();
+  }
+  function wordCount(s) { const m = (s || '').match(/\S+/g); return m ? m.length : 0; }
+  function wordsLabel(s) { const w = wordCount(s); return w === 1 ? '1 palabra' : `${nf(w)} palabras`; }
+
+  /* ---------- Pantalla de la nota ---------- */
+  let ED = null; // editor con formato de la nota abierta
+  const view = { tab: 'nota' }; // 'nota' o el id de una transcripción
+
+  function commitEditor() {
+    if (!ED || !ED.dirty) return;
+    clearTimeout(ED.timer);
+    ED.dirty = false;
+    const md = ED.editor.getMarkdown();
+    if (md !== ED.note.text) { ED.note.text = md; touch(ED.note); }
+    else setStatus('Guardado');
+  }
+  function destroyEditor() {
+    if (!ED) return;
+    commitEditor();
+    try { ED.editor.destroy(); } catch { /* ya destruido */ }
+    ED = null;
+    document.body.classList.remove('editing');
+  }
 
   function showEmpty() {
     const has = liveNotes().length > 0;
@@ -409,25 +499,30 @@
     const now = Date.now();
     const n = { id: uid(), title: '', date: todayISO(), text: '', tags: [], transcripts: [], createdAt: now, updatedAt: now };
     S.data.notes.push(n);
-    scheduleSave();
     openNote(n.id);
     const t = $('.ed-title'); if (t) t.focus();
+    return n;
   }
 
-  function openNote(id) {
-    const wasOpen = !!ui.current;
+  function openNote(id, tab) {
+    const prev = ui.current;
+    if (prev && prev !== id) { destroyEditor(); pruneNote(prev); }
     ui.current = id;
+    view.tab = tab || 'nota';
     renderEditor();
     renderList();
     if (narrow()) {
       document.body.classList.add('show-editor');
-      if (!wasOpen) history.pushState({ note: id }, '');
+      if (!prev) history.pushState({ note: id }, '');
       else history.replaceState({ note: id }, '');
     }
     $('#editor').scrollTop = 0;
   }
   function closeEditor() {
+    const prev = ui.current;
+    destroyEditor();
     ui.current = null;
+    if (prev) pruneNote(prev);
     document.body.classList.remove('show-editor');
     showEmpty();
     renderList();
@@ -442,35 +537,254 @@
 
   function autosize(ta) { ta.style.height = 'auto'; ta.style.height = Math.max(ta.scrollHeight, 0) + 'px'; }
 
+  function switchTab(n, tab) {
+    commitEditor();
+    if (view.tab !== 'nota') {
+      const t = n.transcripts.find(x => x.id === view.tab);
+      if (t && !(t.text || '').trim()) { n.transcripts = n.transcripts.filter(x => x !== t); }
+    }
+    view.tab = tab;
+    renderEditor();
+    $('#editor').scrollTop = 0;
+  }
+
   function renderEditor() {
+    destroyEditor();
     const n = getNote(ui.current);
     if (!n) { closeEditor(); return; }
+    if (view.tab !== 'nota' && !n.transcripts.some(t => t.id === view.tab)) view.tab = 'nota';
+    const head = h('div', { class: 'ed-head' }, edBar(n), edTabs(n));
+    const pane = h('div', { class: 'ed-pane' });
+    $('#editor').replaceChildren(head, pane);
+    if (view.tab === 'nota') notePane(n, head, pane);
+    else trPane(n, n.transcripts.find(t => t.id === view.tab), pane);
+  }
 
+  function edBar(n) {
+    return h('div', { class: 'ed-bar' },
+      h('button', { class: 'btn ghost icon only-narrow', 'aria-label': 'Volver', html: I.back, onclick: goBack }),
+      h('button', { class: 'btn ghost icon only-wide', id: 'focus-btn', title: PREF.focus ? 'Mostrar la lista de notas' : 'Modo foco: ocultar la lista de notas', 'aria-label': 'Modo foco', html: I.focus, onclick: toggleFocus }),
+      h('span', { class: 'status', id: 'ed-status', text: 'Guardado' }),
+      h('button', { class: 'btn ghost icon', title: 'Tamaño de letra', 'aria-label': 'Tamaño de letra', html: '<span class="aa">Aa</span>', onclick: cycleSize }),
+      h('button', { class: 'btn ghost', title: 'Copiar esta nota como texto', onclick: () => exportDialog(n.id), html: I.copy + '<span class="label">Copiar para chat</span>' }),
+      h('button', { class: 'btn ghost icon', title: 'Más opciones', 'aria-label': 'Más opciones de la nota', html: I.menu, onclick: () => noteMenu(n) })
+    );
+  }
+
+  function edTabs(n) {
+    const tabs = h('div', { class: 'ed-tabs', role: 'tablist' });
+    const mk = (id, label, sub) => h('button', {
+      class: 'tab' + (view.tab === id ? ' on' : ''), role: 'tab', 'aria-selected': view.tab === id ? 'true' : 'false',
+      onclick: () => { if (view.tab !== id) switchTab(n, id); }
+    }, h('span', { class: 'tab-l', text: label }), sub ? h('span', { class: 'tab-s', text: sub }) : null);
+    tabs.append(mk('nota', 'Nota'));
+    n.transcripts.forEach((t, i) => tabs.append(mk(t.id, t.name || `Transcripción ${i + 1}`, wordsLabel(t.text))));
+    tabs.append(h('button', { class: 'tab add', title: 'Agregar una transcripción', onclick: () => addTranscript(n) }, '+ Transcripción'));
+    return tabs;
+  }
+
+  function addTranscript(n, text = '', name = '') {
+    commitEditor();
+    const t = { id: uid(), name, text };
+    n.transcripts.push(t);
+    if (text) touch(n);
+    view.tab = t.id;
+    renderEditor();
+    $('#editor').scrollTop = 0;
+    const ta = $('.tr-text'); if (ta && !text) ta.focus();
+    return t;
+  }
+
+  function noteMenu(n) {
+    const d = $('#dlg');
+    const go = fn => () => { d.close(); fn(); };
+    openDialog(d, n.title || 'Sin título', [h('div', { class: 'menu' },
+      h('button', { class: 'btn', text: 'Agregar contenido de un archivo .docx', onclick: go(() => docxIntoNote(n)) }),
+      h('button', { class: 'btn', text: 'Agregar transcripción desde un .txt', onclick: go(() => txtTranscripts(n)) }),
+      h('button', { class: 'btn', text: 'Ver índice de títulos', onclick: go(() => { if (view.tab !== 'nota') switchTab(n, 'nota'); outlineDialog(); }) }),
+      h('hr'),
+      h('button', { class: 'btn danger', text: 'Eliminar nota', onclick: go(() => deleteNote(n)) })
+    )], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
+  }
+
+  /* Pestaña Nota: título, fecha, etiquetas y texto con formato */
+  function notePane(n, head, pane) {
     const title = h('input', { type: 'text', class: 'ed-title', placeholder: 'Título', value: n.title, 'aria-label': 'Título' });
     title.addEventListener('input', () => { n.title = title.value; touch(n); });
-
+    title.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || !ED) return;
+      e.preventDefault();
+      ED.editor.commands.setTextSelection(1);
+      ED.editor.view.focus();
+    });
     const date = h('input', { type: 'date', value: n.date || '', 'aria-label': 'Fecha' });
     date.addEventListener('change', () => { n.date = date.value; touch(n); });
+    const host = h('div', { class: 'prose' });
+    const fmt = fmtBar();
+    head.append(fmt);
+    pane.append(h('div', { class: 'ed-body' }, title, h('div', { class: 'ed-meta' }, date, tagsEditor(n)), host));
 
-    const text = h('textarea', { class: 'ed-text', placeholder: 'Escribí acá: resumen, notas, lo que te quedó dando vueltas…', 'aria-label': 'Texto' });
-    text.value = n.text || '';
-    text.addEventListener('input', () => { n.text = text.value; autosize(text); touch(n); });
+    const X = window.NotasEditor;
+    const editor = new X.Editor({
+      element: host,
+      injectCSS: false,
+      extensions: [
+        X.StarterKit.configure({ underline: false, link: { openOnClick: false, autolink: true, linkOnPaste: true } }),
+        X.TaskList, X.TaskItem.configure({ nested: true }),
+        X.Placeholder.configure({ placeholder: 'Escribí acá. Atajos: "# " título, "- " viñeta, "1. " lista, "[ ] " tarea, "> " cita.' }),
+        X.Markdown
+      ],
+      content: n.text || '',
+      contentType: 'markdown',
+      editorProps: {
+        attributes: { class: 'prose-ed', 'aria-label': 'Texto de la nota', spellcheck: 'true' },
+        transformPastedHTML: cleanPastedHTML
+      },
+      onUpdate: () => {
+        if (!ED) return;
+        ED.dirty = true;
+        setStatus('Guardando…');
+        clearTimeout(ED.timer);
+        ED.timer = setTimeout(commitEditor, 500);
+      },
+      onTransaction: () => updateFmtSoon(),
+      onFocus: () => document.body.classList.add('editing'),
+      onBlur: () => document.body.classList.remove('editing')
+    });
+    ED = { editor, note: n, dirty: false, timer: null, fmt };
+    updateFmt();
+  }
 
-    $('#editor').replaceChildren(
-      h('div', { class: 'ed-bar' },
-        h('button', { class: 'btn ghost icon only-narrow', 'aria-label': 'Volver', html: I.back, onclick: goBack }),
-        h('span', { class: 'status', id: 'ed-status', text: 'Guardado' }),
-        h('button', { class: 'btn ghost', title: 'Copiar esta nota como texto', onclick: () => exportDialog(n.id), html: I.copy + '<span class="label">Copiar para chat</span>' }),
-        h('button', { class: 'btn ghost icon danger', title: 'Eliminar nota', 'aria-label': 'Eliminar nota', html: I.trash, onclick: () => deleteNote(n) })
-      ),
-      h('div', { class: 'ed-body' },
-        title,
-        h('div', { class: 'ed-meta' }, date, tagsEditor(n)),
-        text,
-        transcriptsSection(n)
-      )
+  let fmtRaf = 0;
+  function updateFmtSoon() { if (!fmtRaf) fmtRaf = requestAnimationFrame(() => { fmtRaf = 0; updateFmt(); }); }
+  function updateFmt() {
+    if (!ED) return;
+    const e = ED.editor;
+    for (const b of ED.fmt.querySelectorAll('[data-k]')) {
+      const k = b.dataset.k;
+      let on = false, dis = false;
+      if (k === 'p') on = e.isActive('paragraph') && !e.isActive('bulletList') && !e.isActive('orderedList') && !e.isActive('taskList') && !e.isActive('blockquote');
+      else if (/^h[1-3]$/.test(k)) on = e.isActive('heading', { level: Number(k[1]) });
+      else if (['bold', 'italic', 'strike', 'bulletList', 'orderedList', 'taskList', 'blockquote'].includes(k)) on = e.isActive(k);
+      else if (k === 'undo') dis = !e.can().undo();
+      else if (k === 'redo') dis = !e.can().redo();
+      else if (k === 'indent') dis = !(e.can().sinkListItem('listItem') || e.can().sinkListItem('taskItem'));
+      else if (k === 'outdent') dis = !(e.can().liftListItem('listItem') || e.can().liftListItem('taskItem'));
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.disabled = dis;
+    }
+  }
+
+  function fmtBar() {
+    const run = fn => () => { if (ED) { fn(ED.editor); updateFmt(); } };
+    const B = (k, label, title, fn, html) => {
+      const b = h('button', { class: 'fb' + (html ? ' ico' : ''), type: 'button', title, 'aria-label': title, 'data-k': k, onclick: run(fn) });
+      if (html) b.innerHTML = html; else b.textContent = label;
+      b.addEventListener('mousedown', e => e.preventDefault());
+      return b;
+    };
+    const sep = () => h('span', { class: 'fsep', 'aria-hidden': 'true' });
+    const c = e => e.chain().focus();
+    return h('div', { class: 'fmt-bar', role: 'toolbar', 'aria-label': 'Formato' },
+      B('p', 'Texto', 'Texto normal', e => c(e).setParagraph().run()),
+      B('h1', 'T1', 'Título 1', e => c(e).toggleHeading({ level: 1 }).run()),
+      B('h2', 'T2', 'Título 2', e => c(e).toggleHeading({ level: 2 }).run()),
+      B('h3', 'T3', 'Título 3', e => c(e).toggleHeading({ level: 3 }).run()),
+      sep(),
+      B('bold', 'B', 'Negrita', e => c(e).toggleBold().run()),
+      B('italic', 'I', 'Cursiva', e => c(e).toggleItalic().run()),
+      B('strike', 'S', 'Tachado', e => c(e).toggleStrike().run()),
+      sep(),
+      B('bulletList', '', 'Viñetas', e => c(e).toggleBulletList().run(), I.ul),
+      B('orderedList', '', 'Lista numerada', e => c(e).toggleOrderedList().run(), I.ol),
+      B('taskList', '', 'Lista de tareas', e => c(e).toggleTaskList().run(), I.task),
+      B('outdent', '', 'Reducir sangría', e => { if (!c(e).liftListItem('listItem').run()) c(e).liftListItem('taskItem').run(); }, I.outdent),
+      B('indent', '', 'Aumentar sangría', e => { if (!c(e).sinkListItem('listItem').run()) c(e).sinkListItem('taskItem').run(); }, I.indent),
+      sep(),
+      B('blockquote', '', 'Cita', e => c(e).toggleBlockquote().run(), I.quote),
+      B('hr', '', 'Línea divisoria', e => c(e).setHorizontalRule().run(), I.hr),
+      sep(),
+      B('undo', '', 'Deshacer', e => c(e).undo().run(), I.undo),
+      B('redo', '', 'Rehacer', e => c(e).redo().run(), I.redo),
+      sep(),
+      B('outline', '', 'Índice de títulos', () => outlineDialog(), I.outline)
     );
-    requestAnimationFrame(() => autosize(text));
+  }
+
+  function outlineDialog() {
+    if (!ED) return;
+    const e = ED.editor;
+    const items = [];
+    e.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'heading') { items.push({ level: node.attrs.level, text: node.textContent, pos }); return false; }
+      return true;
+    });
+    if (!items.length) { toast('Esta nota no tiene títulos. Usá T1, T2 o T3 para crearlos.', 4000); return; }
+    const d = $('#dlg2');
+    openDialog(d, 'Índice', [h('div', { class: 'outline' }, items.map(it => h('button', {
+      class: 'ol-item lvl' + Math.min(it.level, 4), text: it.text || '(título vacío)',
+      onclick: () => {
+        d.close();
+        const dom = e.view.nodeDOM(it.pos);
+        if (dom && dom.scrollIntoView) dom.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+    })))], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
+  }
+
+  /* Pestaña de una transcripción: texto plano, a lo ancho de la columna y sin scroll interno */
+  function trPane(n, t, pane) {
+    const idx = n.transcripts.indexOf(t);
+    const name = h('input', { type: 'text', class: 'tr-name', placeholder: `Transcripción ${idx + 1}`, value: t.name, 'aria-label': 'Nombre de la transcripción' });
+    const stats = h('span', { class: 'tr-stats', text: wordsLabel(t.text) });
+    const ta = h('textarea', { class: 'tr-text', placeholder: 'Pegá acá la transcripción o cargala desde un archivo .txt', 'aria-label': 'Transcripción', spellcheck: 'false' });
+    ta.value = t.text || '';
+    const tabLabel = () => $('.tab.on .tab-l');
+    const tabSub = () => $('.tab.on .tab-s');
+    name.addEventListener('input', () => { t.name = name.value; const l = tabLabel(); if (l) l.textContent = t.name || `Transcripción ${idx + 1}`; touch(n); });
+    const refresh = debounce(() => { const w = wordsLabel(t.text); stats.textContent = w; const s = tabSub(); if (s) s.textContent = w; }, 400);
+    let raf = 0;
+    ta.addEventListener('input', () => {
+      t.text = ta.value; touch(n); refresh();
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; autosize(ta); });
+    });
+    pane.append(h('div', { class: 'ed-body tr-body' },
+      h('div', { class: 'tr-top' },
+        name,
+        h('div', { class: 'tr-actions' }, stats,
+          h('button', { class: 'btn small', text: 'Cargar .txt', onclick: async () => {
+            const [f] = await pickFile('.txt,.md,text/plain');
+            if (!f) return;
+            const txt = await f.text();
+            t.text = t.text.trim() ? t.text.replace(/\s+$/, '') + '\n\n' + txt : txt;
+            if (!t.name) t.name = f.name.replace(/\.(txt|md)$/i, '');
+            touch(n); renderEditor(); toast('Transcripción cargada.');
+          } }),
+          h('button', { class: 'btn small', text: 'Copiar', onclick: async () => { toast(await copyText(t.text) ? 'Transcripción copiada.' : 'No se pudo copiar.'); } }),
+          h('button', { class: 'btn small danger', text: 'Eliminar', onclick: async () => {
+            if ((t.text || '').trim() && !(await confirmBox('¿Eliminar esta transcripción?', 'Eliminar', true))) return;
+            n.transcripts = n.transcripts.filter(x => x.id !== t.id); touch(n); view.tab = 'nota'; renderEditor();
+          } })
+        )
+      ),
+      ta
+    ));
+    requestAnimationFrame(() => autosize(ta));
+  }
+
+  async function txtTranscripts(n) {
+    const files = await pickFile('.txt,.md,text/plain', true);
+    if (!files.length) return;
+    let last = null;
+    for (const f of files) {
+      const t = { id: uid(), name: f.name.replace(/\.(txt|md)$/i, ''), text: await f.text() };
+      n.transcripts.push(t); last = t.id;
+    }
+    touch(n);
+    commitEditor();
+    view.tab = last;
+    renderEditor();
+    toast(files.length === 1 ? 'Transcripción agregada.' : `${files.length} transcripciones agregadas.`);
   }
 
   function tagsEditor(n) {
@@ -503,67 +817,107 @@
     return wrap;
   }
 
-  function transcriptsSection(n) {
-    const sec = h('section', { class: 'tr-section' });
-    function draw(openId) {
-      const count = n.transcripts.length;
-      sec.replaceChildren(
-        h('div', { class: 'tr-head' },
-          h('h3', { text: count ? `Transcripciones (${count})` : 'Transcripciones' }),
-          h('button', { class: 'btn small', text: 'Pegar texto', onclick: () => {
-            const t = { id: uid(), name: '', text: '' };
-            n.transcripts.push(t); touch(n); draw(t.id);
-            setTimeout(() => { const ta = sec.querySelector(`[data-tr="${t.id}"] textarea`); if (ta) ta.focus(); }, 30);
-          } }),
-          h('button', { class: 'btn small', text: 'Cargar .txt', onclick: async () => {
-            const files = await pickFile('.txt,.md,text/plain', true);
-            let last = null;
-            for (const f of files) {
-              const t = { id: uid(), name: f.name.replace(/\.(txt|md)$/i, ''), text: await f.text() };
-              n.transcripts.push(t); last = t.id;
-            }
-            if (files.length) { touch(n); draw(last); toast(files.length === 1 ? 'Transcripción agregada.' : `${files.length} transcripciones agregadas.`); }
-          } })
-        ),
-        ...n.transcripts.map((t, i) => trBlock(n, t, i, t.id === openId, draw))
-      );
-    }
-    draw(null);
-    return sec;
-  }
-
-  function trBlock(n, t, i, open, redraw) {
-    const nameLabel = h('span', { class: 'name', text: t.name || `Transcripción ${i + 1}` });
-    const count = h('span', { class: 'count', text: nf(t.text.length) + ' caracteres' });
-    const name = h('input', { type: 'text', placeholder: 'Nombre (opcional)', value: t.name, 'aria-label': 'Nombre de la transcripción' });
-    name.addEventListener('input', () => { t.name = name.value; nameLabel.textContent = t.name || `Transcripción ${i + 1}`; touch(n); });
-    const ta = h('textarea', { placeholder: 'Pegá la transcripción', 'aria-label': 'Transcripción' });
-    ta.value = t.text;
-    ta.addEventListener('input', () => { t.text = ta.value; count.textContent = nf(t.text.length) + ' caracteres'; touch(n); });
-    const det = h('details', { class: 'tr', 'data-tr': t.id },
-      h('summary', null, nameLabel, count),
-      h('div', { class: 'tr-body' }, name, ta,
-        h('div', { class: 'row' },
-          h('button', { class: 'btn small', text: 'Copiar', onclick: async () => { toast(await copyText(t.text) ? 'Transcripción copiada.' : 'No se pudo copiar.'); } }),
-          h('button', { class: 'btn small danger', text: 'Eliminar', onclick: async () => {
-            if (!(await confirmBox('¿Eliminar esta transcripción?', 'Eliminar', true))) return;
-            n.transcripts = n.transcripts.filter(x => x.id !== t.id); touch(n); redraw(null);
-          } })
-        )
-      )
-    );
-    if (open) det.open = true;
-    return det;
-  }
-
   async function deleteNote(n) {
     if (!(await confirmBox(`¿Eliminar "${n.title || 'Sin título'}"? No se puede deshacer.`, 'Eliminar', true))) return;
+    if (ED && ED.note === n) { ED.dirty = false; destroyEditor(); }
     const idx = S.data.notes.indexOf(n);
     S.data.notes[idx] = { id: n.id, deleted: true, updatedAt: Date.now() };
     scheduleSave();
     if (history.state && history.state.note && narrow()) history.back();
     else closeEditor();
     toast('Nota eliminada.');
+  }
+
+  /* ---------- Pegar desde Word o Docs, e importar .docx ---------- */
+  function flattenTables(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('img, style, script, meta, link, title').forEach(e => e.remove());
+    doc.querySelectorAll('[style]').forEach(e => e.removeAttribute('style'));
+    doc.querySelectorAll('table').forEach(tb => {
+      const frag = doc.createDocumentFragment();
+      tb.querySelectorAll('tr').forEach(tr => {
+        const cells = [...tr.children].map(c => c.textContent.trim().replace(/\s+/g, ' ')).filter(Boolean);
+        if (cells.length) { const p = doc.createElement('p'); p.textContent = cells.join(' | '); frag.append(p); }
+      });
+      tb.replaceWith(frag);
+    });
+    return doc.body.innerHTML;
+  }
+  // Word pega las viñetas como párrafos sueltos con el símbolo adelante; acá se rearman como lista.
+  function wordLists(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('[data-mso-ignore]').forEach(e => e.remove());
+    let cur = null;
+    for (const p of [...doc.body.querySelectorAll('p')]) {
+      const item = /MsoListParagraph/i.test(p.className) || p.hasAttribute('data-mso-item');
+      if (!item) continue;
+      if (!(cur && p.previousElementSibling === cur)) { cur = doc.createElement('ul'); p.before(cur); }
+      const li = doc.createElement('li');
+      li.innerHTML = p.innerHTML;
+      cur.append(li);
+      p.remove();
+    }
+    return doc.body.innerHTML;
+  }
+  // Quita los estilos en línea antes de leer el HTML (la política de seguridad no los permite) y guarda las marcas de lista de Word.
+  function stripStyles(html) {
+    return html.replace(/\sstyle\s*=\s*("[^"]*"|'[^']*')/gi, (m, v) =>
+      /mso-list:\s*Ignore/i.test(v) ? ' data-mso-ignore="1"' : /mso-list:\s*l\d/i.test(v) ? ' data-mso-item="1"' : '');
+  }
+  function cleanPastedHTML(html) {
+    html = stripStyles(html);
+    if (/class="?Mso|urn:schemas-microsoft-com/i.test(html)) html = wordLists(html);
+    return flattenTables(html);
+  }
+  let mammothLoading = null;
+  function loadMammoth() {
+    if (window.mammoth) return Promise.resolve();
+    if (mammothLoading) return mammothLoading;
+    mammothLoading = new Promise((res, rej) => {
+      const sc = document.createElement('script');
+      sc.src = 'vendor/mammoth.browser.min.js';
+      sc.onload = () => res();
+      sc.onerror = () => { mammothLoading = null; rej(new Error('No se pudo cargar el lector de .docx.')); };
+      document.head.append(sc);
+    });
+    return mammothLoading;
+  }
+  async function docxToHtml(file) {
+    await loadMammoth();
+    const r = await window.mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() }, {
+      styleMap: ["p[style-name='Title'] => h1:fresh", "p[style-name='Subtitle'] => h2:fresh", "p[style-name='Título'] => h1:fresh", "p[style-name='Subtítulo'] => h2:fresh"]
+    });
+    return flattenTables(r.value || '');
+  }
+  async function pickDocx() {
+    const [f] = await pickFile('.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    if (!f) return null;
+    toast('Leyendo el documento…', 2500);
+    try { return { name: f.name.replace(/\.docx$/i, ''), html: await docxToHtml(f) }; }
+    catch (e) { console.error(e); toast('No se pudo leer el .docx: ' + (e.message || e), 5000); return null; }
+  }
+  async function docxIntoNote(n) {
+    const doc = await pickDocx();
+    if (!doc) return;
+    if (!getNote(n.id)) return;
+    if (ui.current !== n.id) openNote(n.id, 'nota');
+    else if (view.tab !== 'nota') switchTab(n, 'nota');
+    if (!ED) return;
+    if (!(n.text || '').trim()) ED.editor.commands.setContent(doc.html);
+    else ED.editor.chain().focus('end').insertContent('<hr>' + doc.html).run();
+    if (!n.title.trim()) { n.title = doc.name; const t = $('.ed-title'); if (t) t.value = n.title; }
+    ED.dirty = true; commitEditor(); touch(n);
+    toast('Contenido del .docx agregado.');
+  }
+  async function newNoteFromDocx() {
+    const doc = await pickDocx();
+    if (!doc) return;
+    const n = newNote();
+    n.title = doc.name;
+    const t = $('.ed-title'); if (t) { t.value = n.title; t.blur(); }
+    if (ED) { ED.editor.commands.setContent(doc.html); ED.dirty = true; commitEditor(); }
+    touch(n);
+    toast('Nota creada desde el .docx.');
   }
 
   /* ---------- Diálogos genéricos ---------- */
@@ -617,6 +971,7 @@
     openDialog(d, 'Menú', [h('div', { class: 'menu' },
       h('button', { class: 'btn', text: 'Copiar notas como texto para un chat', onclick: go(() => exportDialog(null)) }),
       h('button', { class: 'btn', text: 'Importar notas desde texto', onclick: go(importDialog) }),
+      h('button', { class: 'btn', text: 'Nueva nota desde un archivo .docx', onclick: go(newNoteFromDocx) }),
       h('hr'),
       h('button', { class: 'btn', text: 'Descargar backup encriptado', onclick: go(exportBackup) }),
       h('button', { class: 'btn', text: 'Restaurar backup encriptado', onclick: go(importBackup) }),
@@ -640,7 +995,7 @@
     let out = `# ${n.title || 'Sin título'}\n`;
     if (n.date) out += `Fecha: ${n.date}\n`;
     if ((n.tags || []).length) out += `Etiquetas: ${n.tags.join(', ')}\n`;
-    const body = (n.text || '').trim();
+    const body = (n.text || '').trim().replace(/^(#{1,5}) /gm, '#$1 ');
     if (body) out += `\n${body}\n`;
     if (withTr) for (const t of n.transcripts || []) {
       const tx = (t.text || '').trim();
@@ -655,6 +1010,7 @@
   }
 
   function exportDialog(noteId) {
+    commitEditor();
     const d = $('#dlg');
     const filtered = filteredNotes();
     const isFiltered = ui.query.trim() || ui.tags.size;
@@ -722,6 +1078,7 @@ Reglas:
 - No resumas, no corrijas, no reescribas ni agregues nada. Copiá cada texto tal cual.
 - Si falta un dato (fecha, título), dejalo vacío. No lo inventes.
 - Una nota por sesión, tema o reflexión. Si dudás cómo agrupar, preguntame antes.
+- Si el texto tiene títulos, subtítulos o listas, mantenelos en Markdown: # título, ## subtítulo, - viñeta, 1. lista numerada.
 - Fechas en formato AAAA-MM-DD.
 - Si es muy largo, cortá en tandas y avisame. No acortes ni omitas texto para que entre.
 - Devolvé solo el formato, en un bloque de código, sin comentarios.

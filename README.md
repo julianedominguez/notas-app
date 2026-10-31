@@ -16,6 +16,15 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 - iPhone (Safari): Compartir, "Agregar a pantalla de inicio". Sin esto, Safari puede borrar los datos de una web que no se usa por una semana.
 - Cada dispositivo tiene su propia copia. Para pasar notas entre dispositivos: Menú, "Descargar backup encriptado" en uno y "Restaurar backup encriptado" en el otro.
 
+## Edición
+
+- Cada nota tiene una pestaña con el texto y una pestaña por transcripción, para leer y editar a pantalla completa.
+- El texto acepta formato: títulos (T1, T2, T3), negrita, cursiva, tachado, viñetas, listas numeradas, tareas, citas y líneas divisorias. Se guarda como Markdown, así que al copiarlo a un chat mantiene la estructura.
+- Atajos al escribir: `# ` título, `## ` subtítulo, `- ` viñeta, `1. ` lista, `[ ] ` tarea, `> ` cita.
+- Se puede crear una nota desde un archivo .docx (respeta títulos, listas, negrita y cursiva; las tablas quedan como filas de texto) o pegar desde Google Docs y Word.
+- Índice de títulos para saltar dentro de notas largas, tamaño de letra ajustable y modo foco que oculta la lista.
+- Las notas que quedan completamente vacías se borran solas al salir de ellas.
+
 ## Formato de importación
 
 ```
