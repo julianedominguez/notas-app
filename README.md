@@ -14,16 +14,30 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 
 - Android o PC (Chrome o Edge): abrir la dirección y elegir "Instalar app".
 - iPhone (Safari): Compartir, "Agregar a pantalla de inicio". Sin esto, Safari puede borrar los datos de una web que no se usa por una semana.
-- Cada dispositivo tiene su propia copia. Para pasar notas entre dispositivos: Menú, "Descargar backup encriptado" en uno y "Restaurar backup encriptado" en el otro.
+- Cada dispositivo tiene su propia copia. Para pasar notas entre dispositivos: Google Drive, o Menú, "Descargar backup encriptado" en uno y "Restaurar backup encriptado" en el otro.
+
+## Sesiones
+
+- Un mismo dispositivo puede tener varias sesiones, cada una con sus notas, su contraseña y su conexión a Drive (otra cuenta de Google o la misma con otro archivo).
+- Se crean desde Menú, "Crear otra sesión". En la pantalla de bloqueo hay un solo campo: la contraseña que pongas decide qué sesión se abre, y no se muestra cuántas hay.
+- Cada sesión queda atada a la cuenta de Google con la que conectó Drive. Si al renovar el acceso se elige otra cuenta, la app lo rechaza.
+- Para usar una sesión en otro dispositivo, se crea allá con el mismo nombre y se conecta Drive: encuentra su archivo (`notas-app-<nombre>.txt`) y pide su contraseña. La primera sesión usa `notas-app-vault.txt`, como antes.
 
 ## Edición
 
-- Cada nota tiene una pestaña con el texto y una pestaña por transcripción, para leer y editar a pantalla completa.
+- Cada nota tiene una pestaña con el texto y una pestaña por sección, para leer y editar a pantalla completa.
+- Las secciones son de una categoría: Transcripción (texto plano) o las que definas en Menú, "Categorías de secciones" (por ejemplo Resumen o Comentarios), que tienen el mismo formato que la nota. "+ Sección" agrega una pestaña de la categoría que elijas.
 - El texto acepta formato: títulos (T1, T2, T3), negrita, cursiva, tachado, viñetas, listas numeradas, tareas, citas y líneas divisorias. Se guarda como Markdown, así que al copiarlo a un chat mantiene la estructura.
 - Atajos al escribir: `# ` título, `## ` subtítulo, `- ` viñeta, `1. ` lista, `[ ] ` tarea, `> ` cita.
 - Se puede crear una nota desde un archivo .docx (respeta títulos, listas, negrita y cursiva; las tablas quedan como filas de texto) o pegar desde Google Docs y Word.
 - Índice de títulos para saltar dentro de notas largas, tamaño de letra ajustable y modo foco que oculta la lista.
-- Las notas que quedan completamente vacías se borran solas al salir de ellas.
+- Las notas que quedan completamente vacías se borran solas al salir de ellas, igual que las secciones vacías.
+
+## Copiar o descargar como texto
+
+- Desde una nota o desde el Menú. Se puede elegir una nota, varias marcándolas en una lista con buscador, todas, las de la búsqueda actual, un año o un rango de fechas.
+- También qué partes incluir: el texto de la nota y cada categoría de sección por separado.
+- Se copia para pegar en un chat o se descarga como .txt. En los dos casos sale sin encriptar.
 
 ## Formato de importación
 
@@ -36,6 +50,10 @@ etiquetas: <etiqueta1, etiqueta2 o vacío>
 <texto de la nota>
 --- TRANSCRIPCION: <nombre opcional> ---
 <transcripción completa>
+--- SECCION: <categoría>: <nombre opcional> ---
+<texto de la sección>
 ```
+
+Los bloques SECCION crean la categoría si no existe.
 
 Las instrucciones completas para que una IA ordene textos en este formato están dentro de la app: Menú, "Importar notas desde texto", "Ver instrucciones para la IA".

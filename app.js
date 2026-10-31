@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.3.0';
   const LOCK_MS = 5 * 60 * 1000;
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
@@ -157,6 +157,38 @@
     del(k) { return DB.req('readwrite', s => s.delete(k)); }
   };
 
+  /* ---------- Sesiones: cada contraseña abre su propia bóveda ---------- */
+  // La primera sesión usa las claves de siempre ('vault' y 'drive'); las demás, 'vault:<id>' y 'drive:<id>'.
+  // El índice guarda solo ids y un hash del nombre de archivo de Drive, nunca nombres ni contraseñas.
+  const MAIN = 'main';
+  const vaultKey = sid => sid === MAIN ? 'vault' : 'vault:' + sid;
+  const driveKey = sid => sid === MAIN ? 'drive' : 'drive:' + sid;
+  async function listSessions() {
+    const idx = await DB.get('sessions');
+    if (Array.isArray(idx)) return idx;
+    return (await DB.get('vault')) ? [{ id: MAIN, fh: '' }] : [];
+  }
+  function saveSessions(list) { return DB.put('sessions', list); }
+  function slugify(s) {
+    return norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  }
+  function driveFileFor(name) { const s = slugify(name); return s ? `notas-app-${s}.txt` : 'notas-app-vault.txt'; }
+  async function sha(s) { return b64(await crypto.subtle.digest('SHA-256', te.encode(s))); }
+  // Prueba una contraseña contra todas las sesiones del dispositivo, en paralelo. Devuelve la primera que abre.
+  async function openAny(pass, exceptSid) {
+    const list = (await listSessions()).filter(x => x.id !== exceptSid);
+    const tries = list.map(async x => {
+      const rec = await DB.get(vaultKey(x.id));
+      if (!rec) throw new Error('vacía');
+      const salt = unb64(rec.salt);
+      const key = await deriveKey(pass, salt, rec.iter);
+      const data = await unseal(key, rec);
+      return { sid: x.id, key, salt, iter: rec.iter, data };
+    });
+    if (!tries.length) return null;
+    try { return await Promise.any(tries); } catch { return null; }
+  }
+
   /* ---------- Criptografía ---------- */
   async function deriveKey(pass, salt, iter) {
     const base = await crypto.subtle.importKey('raw', te.encode(pass), 'PBKDF2', false, ['deriveKey']);
@@ -176,7 +208,7 @@
   }
 
   /* ---------- Sesión ---------- */
-  let S = null; // { key, salt, iter, data: { v, notes } }
+  let S = null; // { sid, key, salt, iter, data: { v, notes, cats, profile } }
   const ui = { query: '', tags: new Set(), current: null };
 
   let saveTimer = null;
@@ -187,7 +219,7 @@
     saveChain = saveChain.then(async () => {
       if (!snap) return;
       const rec = await seal(snap.key, snap.salt, snap.iter, snap.data);
-      await DB.put('vault', rec);
+      await DB.put(vaultKey(snap.sid), rec);
       if (S === snap) setStatus('Guardado');
     }).catch(e => { console.error(e); toast('No se pudo guardar: ' + (e && e.message || e)); });
     return saveChain;
@@ -226,6 +258,9 @@
       try { await Promise.race([syncNow(), new Promise(r => setTimeout(r, 8000))]); } catch { /* sigue */ }
     }
     S = null;
+    driveMeta = null;
+    clearTimeout(G.timer);
+    G.state = 'idle'; G.detail = ''; G.pending = false; G.forcePush = false;
     ui.current = null; ui.query = ''; ui.tags.clear();
     for (const d of [$('#dlg'), $('#dlg2')]) { if (d.open) d.close(); d.replaceChildren(); }
     $('#sidebar').replaceChildren();
@@ -239,11 +274,11 @@
   async function showLock() {
     const root = $('#lock');
     root.hidden = false;
-    const rec = await DB.get('vault');
+    const sessions = await listSessions();
     const msg = h('p', { class: 'msg' });
     const card = h('div', { class: 'lock-card' }, h('div', { class: 'lock-mark', html: I.lock }));
 
-    if (!rec) {
+    if (!sessions.length) {
       const p1 = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Contraseña nueva', 'aria-label': 'Contraseña nueva' });
       const p2 = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Repetila', 'aria-label': 'Repetir contraseña' });
       const btn = h('button', { class: 'btn primary', type: 'submit', text: 'Crear y entrar' });
@@ -256,9 +291,10 @@
           try {
             const salt = crypto.getRandomValues(new Uint8Array(16));
             const key = await deriveKey(p1.value, salt, KDF_ITER);
-            S = { key, salt, iter: KDF_ITER, data: { v: 1, notes: [] } };
+            S = { sid: MAIN, key, salt, iter: KDF_ITER, data: { v: 1, notes: [], cats: [], profile: { name: 'Principal', driveFile: driveFileFor('') } } };
             p1.value = p2.value = '';
             await queueSave();
+            await saveSessions([{ id: MAIN, fh: await sha(S.data.profile.driveFile) }]);
             if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
             startApp();
           } catch (err) {
@@ -282,20 +318,21 @@
         e.preventDefault();
         if (!pw.value) return;
         btn.disabled = true; btn.textContent = 'Abriendo…'; msg.textContent = '';
-        try {
-          const salt = unb64(rec.salt);
-          const key = await deriveKey(pw.value, salt, rec.iter);
-          const data = await unseal(key, rec);
-          pw.value = '';
-          S = { key, salt, iter: rec.iter, data };
-          if (!Array.isArray(S.data.notes)) S.data.notes = [];
-          if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-          startApp();
-        } catch {
+        const got = await openAny(pw.value).catch(() => null);
+        if (!got) {
           msg.textContent = 'Contraseña incorrecta.';
           btn.disabled = false; btn.textContent = 'Desbloquear';
           pw.select();
+          return;
         }
+        pw.value = '';
+        S = got;
+        normalizeData(S.data, S.sid);
+        if (!Array.isArray(await DB.get('sessions'))) await saveSessions([{ id: MAIN, fh: await sha(S.data.profile.driveFile) }]);
+        driveMeta = (await DB.get(driveKey(S.sid)).catch(() => null)) || null;
+        S.multi = (await listSessions()).length > 1;
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+        startApp();
       }
     }, pw, msg, btn);
     card.append(h('h1', { text: 'notas-app' }), h('p', { text: 'Ingresá tu contraseña.' }), form,
@@ -309,8 +346,7 @@
     const ok = h('button', { class: 'btn danger solid', text: 'Borrar todo', disabled: true });
     conf.addEventListener('input', () => { ok.disabled = conf.value.trim() !== 'BORRAR'; });
     ok.addEventListener('click', async () => {
-      await DB.del('vault');
-      await DB.del('drive').catch(() => {});
+      await wipeAll();
       driveMeta = null;
       $('#dlg2').close();
       toast('Datos borrados de este dispositivo.');
@@ -318,9 +354,182 @@
     });
     openDialog($('#dlg2'), 'Sin contraseña no hay recuperación', [
       h('p', { text: 'Tus notas están encriptadas con esa contraseña y nadie puede abrirlas sin ella.' }),
-      h('p', { class: 'muted small', text: 'Si tenés un backup encriptado y recordás su contraseña, podés empezar de cero y después importarlo. Esto borra las notas de este dispositivo.' }),
+      h('p', { class: 'muted small', text: 'Si tenés un backup encriptado y recordás su contraseña, podés empezar de cero y después importarlo. Esto borra las notas de este dispositivo, de todas las sesiones. Lo que esté en Drive no se toca.' }),
       conf
     ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => $('#dlg2').close() }), ok]);
+  }
+
+  async function wipeAll() {
+    for (const x of await listSessions()) {
+      await DB.del(vaultKey(x.id)).catch(() => {});
+      await DB.del(driveKey(x.id)).catch(() => {});
+    }
+    await DB.del('vault').catch(() => {});
+    await DB.del('drive').catch(() => {});
+    await DB.del('sessions').catch(() => {});
+  }
+
+  // Completa campos que las versiones anteriores no tenían.
+  function normalizeData(d, sid) {
+    if (!Array.isArray(d.notes)) d.notes = [];
+    if (!Array.isArray(d.cats)) d.cats = [];
+    if (!d.profile || typeof d.profile !== 'object') d.profile = {};
+    if (!d.profile.name) d.profile.name = sid === MAIN ? 'Principal' : 'Sesión';
+    if (!d.profile.driveFile) d.profile.driveFile = driveFileFor(sid === MAIN ? '' : d.profile.name);
+  }
+
+  /* ---------- Sesiones: crear y eliminar ---------- */
+  function newSessionDialog() {
+    const d = $('#dlg');
+    const name = h('input', { type: 'text', placeholder: 'Nombre (ej. Trabajo)', autocomplete: 'off', maxlength: '40' });
+    const p1 = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Contraseña de la nueva sesión' });
+    const p2 = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Repetila' });
+    const msg = h('p', { class: 'small', text: '' });
+    const ok = h('button', { class: 'btn primary', text: 'Crear sesión' });
+    ok.addEventListener('click', async () => {
+      msg.textContent = '';
+      const nm = name.value.trim();
+      if (!slugify(nm)) { msg.textContent = 'Poné un nombre con letras o números.'; return; }
+      if (slugify(nm) === 'vault') { msg.textContent = 'Ese nombre está reservado. Elegí otro.'; return; }
+      if (p1.value.length < MIN_PASS) { msg.textContent = `Usá al menos ${MIN_PASS} caracteres.`; return; }
+      if (p1.value !== p2.value) { msg.textContent = 'Las contraseñas no coinciden.'; return; }
+      ok.disabled = true; ok.textContent = 'Preparando…';
+      try {
+        const list = await listSessions();
+        const file = driveFileFor(nm);
+        const fh = await sha(file);
+        if (list.some(x => x.fh === fh)) throw new Error('Ya hay una sesión con ese nombre en este dispositivo. Elegí otro.');
+        if (await openAny(p1.value)) throw new Error('Esa contraseña ya abre otra sesión. Usá una distinta.');
+        await flush();
+        const sid = uid().replace(/-/g, '').slice(0, 16);
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const key = await deriveKey(p1.value, salt, KDF_ITER);
+        const data = { v: 1, notes: [], cats: [], profile: { name: nm, driveFile: file } };
+        await DB.put(vaultKey(sid), await seal(key, salt, KDF_ITER, data));
+        await saveSessions([...list, { id: sid, fh }]);
+        p1.value = p2.value = '';
+        d.close();
+        await lock();
+        toast(`Sesión "${nm}" creada. Entrá con su contraseña.`, 5000);
+      } catch (e) {
+        msg.textContent = e.message || String(e);
+        ok.disabled = false; ok.textContent = 'Crear sesión';
+      }
+    });
+    openDialog(d, 'Crear otra sesión', [
+      h('p', { class: 'muted small', text: 'Cada sesión tiene sus propias notas, su contraseña y su conexión a Drive. En la pantalla de bloqueo, la contraseña que pongas decide qué sesión se abre. No se muestra cuántas sesiones hay.' }),
+      name, p1, p2, msg,
+      h('p', { class: 'muted small', text: 'Para usar esta misma sesión en otro dispositivo, creala allá con el mismo nombre y conectá Drive: encuentra el archivo y te pide su contraseña.' })
+    ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
+    setTimeout(() => name.focus(), 50);
+  }
+
+  function deleteSessionDialog() {
+    const d = $('#dlg');
+    const conf = h('input', { type: 'text', placeholder: 'Escribí BORRAR', autocomplete: 'off' });
+    const ok = h('button', { class: 'btn danger solid', text: 'Eliminar sesión', disabled: true });
+    conf.addEventListener('input', () => { ok.disabled = conf.value.trim() !== 'BORRAR'; });
+    ok.addEventListener('click', async () => {
+      const sid = S.sid;
+      clearTimeout(saveTimer); saveTimer = null;
+      await saveChain;
+      S = null;
+      const list = (await listSessions()).filter(x => x.id !== sid);
+      await DB.del(vaultKey(sid));
+      await DB.del(driveKey(sid)).catch(() => {});
+      if (list.length) await saveSessions(list); else await DB.del('sessions');
+      location.reload();
+    });
+    openDialog(d, 'Eliminar esta sesión', [
+      h('p', { text: `Se borran de este dispositivo las notas de la sesión "${S.data.profile.name}". Las demás sesiones no se tocan. El archivo en Drive, si está conectado, queda en tu Drive.` }),
+      conf
+    ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
+  }
+
+  /* ---------- Categorías de secciones ---------- */
+  // Las secciones viven en n.transcripts (así las versiones viejas las siguen viendo como pestañas).
+  // Cada una tiene cat: 'tr' (Transcripción, texto plano) o el id de una categoría propia (con formato).
+  const TR = 'tr';
+  const catOf = t => (t && t.cat) || TR;
+  const isPlain = cat => cat === TR;
+  function liveCats() { return (S.data.cats || []).filter(c => !c.deleted); }
+  function catName(cat) {
+    if (cat === TR) return 'Transcripción';
+    const c = (S.data.cats || []).find(x => x.id === cat);
+    return c ? c.name : 'Sección';
+  }
+  function allCatsForPick() { return [{ id: TR, name: 'Transcripción' }, ...liveCats()]; }
+  function findCatByName(name) {
+    const k = norm(name.trim());
+    if (!k) return null;
+    if (k === 'transcripcion') return TR;
+    const c = liveCats().find(x => norm(x.name) === k);
+    return c ? c.id : null;
+  }
+  function addCat(name) {
+    const found = findCatByName(name);
+    if (found) return found;
+    const c = { id: 'c' + uid().replace(/-/g, '').slice(0, 10), name: name.trim(), updatedAt: Date.now() };
+    S.data.cats.push(c);
+    scheduleSave();
+    return c.id;
+  }
+  function catInUse(cat) { return liveNotes().some(n => (n.transcripts || []).some(t => catOf(t) === cat)); }
+  function secLabel(n, t) {
+    if (t.name) return t.name;
+    const same = n.transcripts.filter(x => catOf(x) === catOf(t));
+    return same.length > 1 ? `${catName(catOf(t))} ${same.indexOf(t) + 1}` : catName(catOf(t));
+  }
+  function mergeCats(incoming) {
+    if (!Array.isArray(incoming)) return false;
+    const map = new Map(S.data.cats.map((c, i) => [c.id, i]));
+    let changed = false;
+    for (const c of incoming) {
+      if (!c || !c.id) continue;
+      if (!map.has(c.id)) { S.data.cats.push(c); map.set(c.id, S.data.cats.length - 1); changed = true; }
+      else {
+        const i = map.get(c.id);
+        if ((c.updatedAt || 0) > (S.data.cats[i].updatedAt || 0)) { S.data.cats[i] = c; changed = true; }
+      }
+    }
+    return changed;
+  }
+
+  function catsDialog() {
+    const d = $('#dlg');
+    const list = h('div', { class: 'cat-list' });
+    const input = h('input', { type: 'text', placeholder: 'Nueva categoría (ej. Resumen)', autocomplete: 'off', maxlength: '40' });
+    function draw() {
+      list.replaceChildren(
+        h('div', { class: 'cat-row' }, h('span', { class: 'cat-n', text: 'Transcripción' }), h('span', { class: 'muted small', text: 'Texto plano, fija' })),
+        ...liveCats().map(c => {
+          const nm = h('input', { type: 'text', value: c.name, 'aria-label': 'Nombre de la categoría', maxlength: '40' });
+          nm.addEventListener('change', () => {
+            const v = nm.value.trim();
+            const other = findCatByName(v);
+            if (!v || (other && other !== c.id)) { nm.value = c.name; toast(v ? 'Ya existe una categoría con ese nombre.' : 'El nombre no puede quedar vacío.'); return; }
+            c.name = v; c.updatedAt = Date.now(); scheduleSave(); if (ui.current) renderEditor();
+          });
+          return h('div', { class: 'cat-row' }, nm, h('button', { class: 'btn small danger', text: 'Quitar', onclick: () => {
+            if (catInUse(c.id)) { toast('Hay notas con secciones de esta categoría. Borrá esas secciones primero.', 5000); return; }
+            c.deleted = true; c.updatedAt = Date.now(); scheduleSave(); draw();
+          } }));
+        })
+      );
+    }
+    const add = () => {
+      const v = input.value.trim();
+      if (!v) return;
+      if (findCatByName(v)) { toast('Ya existe una categoría con ese nombre.'); return; }
+      addCat(v); input.value = ''; draw();
+    };
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+    openDialog(d, 'Categorías de secciones', [
+      h('p', { class: 'muted small', text: 'Las categorías valen para todas las notas. En cada nota, "+ Sección" agrega una pestaña de la categoría que elijas. Las secciones nuevas tienen formato, como la pestaña Nota.' }),
+      list,
+      h('div', { class: 'row' }, input, h('button', { class: 'btn', text: 'Agregar', onclick: add }))
+    ], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
+    draw();
   }
 
   /* ---------- App ---------- */
@@ -366,7 +575,7 @@
     search.addEventListener('input', debounce(() => { ui.query = search.value; renderList(); }, 150));
     $('#sidebar').replaceChildren(
       h('div', { class: 'side-head' },
-        h('div', { class: 'brand', text: 'notas-app' }),
+        h('div', { class: 'brand' }, 'notas-app', S.multi ? h('span', { class: 'brand-s', text: S.data.profile.name }) : null),
         h('button', { class: 'btn ghost icon', title: 'Bloquear', 'aria-label': 'Bloquear', html: I.lock, onclick: () => lock() }),
         h('button', { class: 'btn ghost icon', title: 'Menú', 'aria-label': 'Menú', html: I.menu, onclick: menuDialog })
       ),
@@ -401,10 +610,11 @@
     }
     list.replaceChildren(...notes.map(n => {
       const trs = (n.transcripts || []).length;
+      const allTr = (n.transcripts || []).every(t => catOf(t) === TR);
       const snip = plainSnippet(n.text).slice(0, 160);
       return h('button', { class: 'item' + (n.id === ui.current ? ' active' : ''), onclick: () => openNote(n.id) },
         h('div', { class: 'item-title' + (n.title ? '' : ' untitled'), text: n.title || 'Sin título' }),
-        h('div', { class: 'item-meta', text: fmtDate(n.date) + (trs ? ` · ${trs} transcripci${trs === 1 ? 'ón' : 'ones'}` : '') }),
+        h('div', { class: 'item-meta', text: fmtDate(n.date) + (!trs ? '' : allTr ? ` · ${trs} transcripci${trs === 1 ? 'ón' : 'ones'}` : ` · ${trs} secci${trs === 1 ? 'ón' : 'ones'}`) }),
         snip ? h('div', { class: 'item-snip', text: snip }) : null,
         (n.tags || []).length ? h('div', { class: 'item-tags' }, n.tags.map(t => h('span', { text: t }))) : null
       );
@@ -475,8 +685,10 @@
     clearTimeout(ED.timer);
     ED.dirty = false;
     const md = ED.editor.getMarkdown();
-    if (md !== ED.note.text) { ED.note.text = md; touch(ED.note); }
-    else setStatus('Guardado');
+    if (md !== ED.target.text) {
+      ED.target.text = md; touch(ED.note);
+      if (ED.onText) ED.onText(md);
+    } else setStatus('Guardado');
   }
   function destroyEditor() {
     if (!ED) return;
@@ -557,7 +769,11 @@
     const pane = h('div', { class: 'ed-pane' });
     $('#editor').replaceChildren(head, pane);
     if (view.tab === 'nota') notePane(n, head, pane);
-    else trPane(n, n.transcripts.find(t => t.id === view.tab), pane);
+    else {
+      const t = n.transcripts.find(x => x.id === view.tab);
+      if (isPlain(catOf(t))) trPane(n, t, pane);
+      else secPane(n, t, head, pane);
+    }
   }
 
   function edBar(n) {
@@ -578,20 +794,37 @@
       onclick: () => { if (view.tab !== id) switchTab(n, id); }
     }, h('span', { class: 'tab-l', text: label }), sub ? h('span', { class: 'tab-s', text: sub }) : null);
     tabs.append(mk('nota', 'Nota'));
-    n.transcripts.forEach((t, i) => tabs.append(mk(t.id, t.name || `Transcripción ${i + 1}`, wordsLabel(t.text))));
-    tabs.append(h('button', { class: 'tab add', title: 'Agregar una transcripción', onclick: () => addTranscript(n) }, '+ Transcripción'));
+    n.transcripts.forEach(t => tabs.append(mk(t.id, secLabel(n, t), wordsLabel(t.text))));
+    tabs.append(h('button', { class: 'tab add', title: 'Agregar una sección', onclick: () => pickSection(n) }, '+ Sección'));
     return tabs;
   }
 
-  function addTranscript(n, text = '', name = '') {
+  function pickSection(n) {
+    const d = $('#dlg2');
+    const go = cat => () => { d.close(); addTranscript(n, '', '', cat); };
+    const input = h('input', { type: 'text', placeholder: 'Otra categoría nueva', autocomplete: 'off', maxlength: '40' });
+    const create = () => { const v = input.value.trim(); if (!v) return; const cat = addCat(v); d.close(); addTranscript(n, '', '', cat); };
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
+    openDialog(d, 'Agregar sección', [
+      h('div', { class: 'menu' }, allCatsForPick().map(c => h('button', { class: 'btn', text: c.name, onclick: go(c.id) }))),
+      h('div', { class: 'row' }, input, h('button', { class: 'btn', text: 'Crear', onclick: create })),
+      h('p', { class: 'muted small', text: 'Las categorías se editan en Menú, "Categorías de secciones".' })
+    ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() })]);
+  }
+
+  function addTranscript(n, text = '', name = '', cat = TR) {
     commitEditor();
     const t = { id: uid(), name, text };
+    if (cat !== TR) t.cat = cat;
     n.transcripts.push(t);
     if (text) touch(n);
     view.tab = t.id;
     renderEditor();
     $('#editor').scrollTop = 0;
-    const ta = $('.tr-text'); if (ta && !text) ta.focus();
+    if (!text) {
+      const ta = $('.tr-text'); if (ta) ta.focus();
+      else if (ED) ED.editor.commands.focus('end');
+    }
     return t;
   }
 
@@ -601,7 +834,7 @@
     openDialog(d, n.title || 'Sin título', [h('div', { class: 'menu' },
       h('button', { class: 'btn', text: 'Agregar contenido de un archivo .docx', onclick: go(() => docxIntoNote(n)) }),
       h('button', { class: 'btn', text: 'Agregar transcripción desde un .txt', onclick: go(() => txtTranscripts(n)) }),
-      h('button', { class: 'btn', text: 'Ver índice de títulos', onclick: go(() => { if (view.tab !== 'nota') switchTab(n, 'nota'); outlineDialog(); }) }),
+      h('button', { class: 'btn', text: 'Ver índice de títulos', onclick: go(() => { if (!ED) switchTab(n, 'nota'); outlineDialog(); }) }),
       h('hr'),
       h('button', { class: 'btn danger', text: 'Eliminar nota', onclick: go(() => deleteNote(n)) })
     )], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
@@ -620,10 +853,39 @@
     const date = h('input', { type: 'date', value: n.date || '', 'aria-label': 'Fecha' });
     date.addEventListener('change', () => { n.date = date.value; touch(n); });
     const host = h('div', { class: 'prose' });
+    pane.append(h('div', { class: 'ed-body' }, title, h('div', { class: 'ed-meta' }, date, tagsEditor(n)), host));
+    mountEditor(n, n, head, host, 'Escribí acá. Atajos: "# " título, "- " viñeta, "1. " lista, "[ ] " tarea, "> " cita.', 'Texto de la nota');
+  }
+
+  /* Pestaña de una sección con formato (Resumen, Comentarios, etc.) */
+  function secPane(n, t, head, pane) {
+    const name = h('input', { type: 'text', class: 'tr-name', placeholder: secLabel(n, Object.assign({}, t, { name: '' })), value: t.name, 'aria-label': 'Nombre de la sección' });
+    const stats = h('span', { class: 'tr-stats', text: catName(catOf(t)) + ' · ' + wordsLabel(t.text) });
+    name.addEventListener('input', () => { t.name = name.value; const l = $('.tab.on .tab-l'); if (l) l.textContent = secLabel(n, t); touch(n); });
+    const host = h('div', { class: 'prose' });
+    pane.append(h('div', { class: 'ed-body' },
+      h('div', { class: 'tr-top' }, name,
+        h('div', { class: 'tr-actions' }, stats,
+          h('button', { class: 'btn small', text: 'Copiar', onclick: async () => { commitEditor(); toast(await copyText(t.text) ? 'Sección copiada.' : 'No se pudo copiar.'); } }),
+          h('button', { class: 'btn small danger', text: 'Eliminar', onclick: async () => {
+            commitEditor();
+            if ((t.text || '').trim() && !(await confirmBox('¿Eliminar esta sección?', 'Eliminar', true))) return;
+            if (ED) ED.dirty = false;
+            n.transcripts = n.transcripts.filter(x => x.id !== t.id); touch(n); view.tab = 'nota'; renderEditor();
+          } })
+        )
+      ),
+      host));
+    mountEditor(n, t, head, host, 'Escribí acá. Tiene el mismo formato que la nota.', 'Texto de la sección', md => {
+      const w = wordsLabel(md);
+      stats.textContent = catName(catOf(t)) + ' · ' + w;
+      const s = $('.tab.on .tab-s'); if (s) s.textContent = w;
+    });
+  }
+
+  function mountEditor(n, target, head, host, placeholder, label, onText) {
     const fmt = fmtBar();
     head.append(fmt);
-    pane.append(h('div', { class: 'ed-body' }, title, h('div', { class: 'ed-meta' }, date, tagsEditor(n)), host));
-
     const X = window.NotasEditor;
     const editor = new X.Editor({
       element: host,
@@ -631,13 +893,13 @@
       extensions: [
         X.StarterKit.configure({ underline: false, link: { openOnClick: false, autolink: true, linkOnPaste: true } }),
         X.TaskList, X.TaskItem.configure({ nested: true }),
-        X.Placeholder.configure({ placeholder: 'Escribí acá. Atajos: "# " título, "- " viñeta, "1. " lista, "[ ] " tarea, "> " cita.' }),
+        X.Placeholder.configure({ placeholder }),
         X.Markdown
       ],
-      content: n.text || '',
+      content: target.text || '',
       contentType: 'markdown',
       editorProps: {
-        attributes: { class: 'prose-ed', 'aria-label': 'Texto de la nota', spellcheck: 'true' },
+        attributes: { class: 'prose-ed', 'aria-label': label, spellcheck: 'true' },
         transformPastedHTML: cleanPastedHTML
       },
       onUpdate: () => {
@@ -651,7 +913,7 @@
       onFocus: () => document.body.classList.add('editing'),
       onBlur: () => document.body.classList.remove('editing')
     });
-    ED = { editor, note: n, dirty: false, timer: null, fmt };
+    ED = { editor, note: n, target, dirty: false, timer: null, fmt, onText };
     updateFmt();
   }
 
@@ -734,14 +996,13 @@
 
   /* Pestaña de una transcripción: texto plano, a lo ancho de la columna y sin scroll interno */
   function trPane(n, t, pane) {
-    const idx = n.transcripts.indexOf(t);
-    const name = h('input', { type: 'text', class: 'tr-name', placeholder: `Transcripción ${idx + 1}`, value: t.name, 'aria-label': 'Nombre de la transcripción' });
+    const name = h('input', { type: 'text', class: 'tr-name', placeholder: secLabel(n, Object.assign({}, t, { name: '' })), value: t.name, 'aria-label': 'Nombre de la transcripción' });
     const stats = h('span', { class: 'tr-stats', text: wordsLabel(t.text) });
     const ta = h('textarea', { class: 'tr-text', placeholder: 'Pegá acá la transcripción o cargala desde un archivo .txt', 'aria-label': 'Transcripción', spellcheck: 'false' });
     ta.value = t.text || '';
     const tabLabel = () => $('.tab.on .tab-l');
     const tabSub = () => $('.tab.on .tab-s');
-    name.addEventListener('input', () => { t.name = name.value; const l = tabLabel(); if (l) l.textContent = t.name || `Transcripción ${idx + 1}`; touch(n); });
+    name.addEventListener('input', () => { t.name = name.value; const l = tabLabel(); if (l) l.textContent = secLabel(n, t); touch(n); });
     const refresh = debounce(() => { const w = wordsLabel(t.text); stats.textContent = w; const s = tabSub(); if (s) s.textContent = w; }, 400);
     let raf = 0;
     ta.addEventListener('input', () => {
@@ -969,9 +1230,10 @@
     if (driveConfigured()) loadGis().catch(() => {});
     const go = fn => () => { d.close(); fn(); };
     openDialog(d, 'Menú', [h('div', { class: 'menu' },
-      h('button', { class: 'btn', text: 'Copiar notas como texto para un chat', onclick: go(() => exportDialog(null)) }),
+      h('button', { class: 'btn', text: 'Copiar o descargar notas como texto', onclick: go(() => exportDialog(null)) }),
       h('button', { class: 'btn', text: 'Importar notas desde texto', onclick: go(importDialog) }),
       h('button', { class: 'btn', text: 'Nueva nota desde un archivo .docx', onclick: go(newNoteFromDocx) }),
+      h('button', { class: 'btn', text: 'Categorías de secciones', onclick: go(catsDialog) }),
       h('hr'),
       h('button', { class: 'btn', text: 'Descargar backup encriptado', onclick: go(exportBackup) }),
       h('button', { class: 'btn', text: 'Restaurar backup encriptado', onclick: go(importBackup) }),
@@ -984,29 +1246,36 @@
       ] : null,
       h('hr'),
       h('button', { class: 'btn', text: 'Cambiar contraseña', onclick: go(changePasswordDialog) }),
-      h('button', { class: 'btn', text: 'Bloquear ahora', onclick: go(lock) }),
-      h('button', { class: 'btn danger', text: 'Borrar todo de este dispositivo', onclick: go(wipeDialog) }),
-      h('p', { class: 'muted small', text: `notas-app ${APP_VERSION} · ${liveNotes().length} notas · se bloquea tras 5 minutos sin uso` })
+      h('button', { class: 'btn', text: S.multi ? 'Bloquear o cambiar de sesión' : 'Bloquear ahora', onclick: go(lock) }),
+      h('button', { class: 'btn', text: 'Crear otra sesión', onclick: go(newSessionDialog) }),
+      h('hr'),
+      S.multi ? h('button', { class: 'btn danger', text: 'Eliminar esta sesión de este dispositivo', onclick: go(deleteSessionDialog) }) : null,
+      h('button', { class: 'btn danger', text: S.multi ? 'Borrar todas las sesiones de este dispositivo' : 'Borrar todo de este dispositivo', onclick: go(wipeDialog) }),
+      h('p', { class: 'muted small', text: `notas-app ${APP_VERSION} · sesión ${S.data.profile.name} · ${liveNotes().length} notas · se bloquea tras 5 minutos sin uso` })
     )], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
   }
 
   /* ---------- Exportar como texto para chat ---------- */
-  function noteToText(n, withTr) {
+  const bump = (md, k) => md.replace(/^(#{1,6}) /gm, (m, x) => '#'.repeat(Math.min(6, x.length + k)) + ' ');
+  // inc: { text: bool, cats: Set de categorías a incluir }
+  function noteToText(n, inc) {
     let out = `# ${n.title || 'Sin título'}\n`;
     if (n.date) out += `Fecha: ${n.date}\n`;
     if ((n.tags || []).length) out += `Etiquetas: ${n.tags.join(', ')}\n`;
-    const body = (n.text || '').trim().replace(/^(#{1,5}) /gm, '#$1 ');
+    const body = inc.text ? bump((n.text || '').trim(), 1) : '';
     if (body) out += `\n${body}\n`;
-    if (withTr) for (const t of n.transcripts || []) {
+    for (const t of n.transcripts || []) {
+      const cat = catOf(t);
+      if (!inc.cats.has(cat)) continue;
       const tx = (t.text || '').trim();
       if (!tx) continue;
-      out += `\n## Transcripción${t.name ? ': ' + t.name : ''}\n\n${tx}\n`;
+      out += `\n## ${catName(cat)}${t.name ? ': ' + t.name : ''}\n\n${isPlain(cat) ? tx : bump(tx, 2)}\n`;
     }
     return out;
   }
-  function buildExport(notes, withTr) {
+  function buildExport(notes, inc) {
     const ordered = [...notes].sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.createdAt - b.createdAt);
-    return ordered.map(n => noteToText(n, withTr)).join('\n========\n\n');
+    return ordered.map(n => noteToText(n, inc)).join('\n========\n\n');
   }
 
   function exportDialog(noteId) {
@@ -1014,38 +1283,111 @@
     const d = $('#dlg');
     const filtered = filteredNotes();
     const isFiltered = ui.query.trim() || ui.tags.size;
+    const years = [...new Set(liveNotes().map(n => (n.date || '').slice(0, 4)).filter(Boolean))].sort().reverse();
     const opts = [];
     if (noteId) opts.push(['nota', 'Solo esta nota']);
+    opts.push(['elegir', 'Elegir notas']);
     opts.push(['todas', `Todas las notas (${liveNotes().length})`]);
     if (isFiltered) opts.push(['filtro', `Las que coinciden con la búsqueda actual (${filtered.length})`]);
+    if (years.length) opts.push(['anio', 'Un año']);
     opts.push(['rango', 'Un rango de fechas']);
-    let scope = opts[0][0];
+    let scope = noteId ? 'nota' : 'todas';
 
+    // Rango
     const from = h('input', { type: 'date', 'aria-label': 'Desde' });
     const to = h('input', { type: 'date', 'aria-label': 'Hasta', value: todayISO() });
     const range = h('div', { class: 'range', hidden: true }, h('label', { class: 'field' }, h('span', { text: 'Desde' }), from), h('label', { class: 'field' }, h('span', { text: 'Hasta' }), to));
-    const radios = h('div', { class: 'radio-list' }, opts.map(([v, label]) => {
-      const r = h('input', { type: 'radio', name: 'scope', value: v, checked: v === scope });
-      r.addEventListener('change', () => { scope = v; range.hidden = v !== 'rango'; update(); });
-      return h('label', null, r, h('span', { text: label }));
-    }));
-    const trCheck = h('input', { type: 'checkbox', checked: !!noteId });
-    trCheck.addEventListener('change', () => update());
     from.addEventListener('change', update);
     to.addEventListener('change', update);
+
+    // Año
+    const yearSel = h('select', { 'aria-label': 'Año' }, years.map(y => h('option', { value: y, text: y })));
+    const yearBox = h('div', { class: 'range', hidden: true }, h('label', { class: 'field' }, h('span', { text: 'Año' }), yearSel));
+    yearSel.addEventListener('change', update);
+
+    // Elegir notas
+    const chosen = new Set(noteId ? [noteId] : []);
+    const pickQ = h('input', { type: 'search', placeholder: 'Buscar por título, fecha o etiqueta', 'aria-label': 'Buscar notas' });
+    const pickList = h('div', { class: 'imp-list pick-list' });
+    const pickInfo = h('span', { class: 'muted small' });
+    function pickVisible() {
+      const q = norm(pickQ.value.trim());
+      return sortNotes(liveNotes()).filter(n => !q || q.split(/\s+/).every(w => norm([n.title, n.date, fmtDate(n.date), (n.tags || []).join(' ')].join(' ')).includes(w)));
+    }
+    function drawPick() {
+      pickList.replaceChildren(...pickVisible().map(n => {
+        const cb = h('input', { type: 'checkbox', checked: chosen.has(n.id) });
+        cb.addEventListener('change', () => { cb.checked ? chosen.add(n.id) : chosen.delete(n.id); update(); });
+        return h('label', { class: 'imp-item' }, cb, h('div', null,
+          h('div', { class: 't', text: n.title || 'Sin título' }),
+          h('div', { class: 'd', text: fmtDate(n.date) + ((n.tags || []).length ? ' · ' + n.tags.join(', ') : '') })));
+      }));
+    }
+    pickQ.addEventListener('input', debounce(drawPick, 150));
+    const pickBox = h('div', { class: 'pick', hidden: true },
+      pickQ,
+      h('div', { class: 'row' },
+        h('button', { class: 'btn small', text: 'Marcar las visibles', onclick: () => { pickVisible().forEach(n => chosen.add(n.id)); drawPick(); update(); } }),
+        h('button', { class: 'btn small', text: 'Desmarcar todas', onclick: () => { chosen.clear(); drawPick(); update(); } }),
+        pickInfo),
+      pickList);
+
+    const radios = h('div', { class: 'radio-list' }, opts.map(([v, label]) => {
+      const r = h('input', { type: 'radio', name: 'scope', value: v, checked: v === scope });
+      r.addEventListener('change', () => {
+        scope = v;
+        range.hidden = v !== 'rango'; yearBox.hidden = v !== 'anio'; pickBox.hidden = v !== 'elegir';
+        if (v === 'elegir') drawPick();
+        update();
+      });
+      return h('label', null, r, h('span', { text: label }));
+    }));
+    range.hidden = scope !== 'rango'; yearBox.hidden = scope !== 'anio'; pickBox.hidden = scope !== 'elegir';
+    if (scope === 'elegir') drawPick();
+
+    // Secciones a incluir
+    const inc = { text: true, cats: new Set(liveCats().map(c => c.id)) };
+    if (noteId) inc.cats.add(TR);
+    const secBox = h('div', { class: 'sec-pick' });
+    function drawSecs(notes) {
+      const present = [];
+      const seen = new Set();
+      for (const n of notes) for (const t of n.transcripts || []) {
+        const c = catOf(t);
+        if (!seen.has(c) && (t.text || '').trim()) { seen.add(c); present.push(c); }
+      }
+      present.sort((a, b) => (a === TR ? -1 : b === TR ? 1 : catName(a).localeCompare(catName(b))));
+      const mk = (label, on, set) => {
+        const cb = h('input', { type: 'checkbox', checked: on });
+        cb.addEventListener('change', () => { set(cb.checked); update(); });
+        return h('label', { class: 'check' }, cb, h('span', { text: label }));
+      };
+      secBox.replaceChildren(
+        h('div', { class: 'muted small', text: 'Qué partes incluir' }),
+        mk('Texto de la nota', inc.text, v => { inc.text = v; }),
+        ...present.map(c => mk(isPlain(c) ? 'Transcripciones' : catName(c), inc.cats.has(c), v => { v ? inc.cats.add(c) : inc.cats.delete(c); }))
+      );
+    }
+
     const stats = h('div', { class: 'stats' });
     const preview = h('textarea', { class: 'preview', readonly: true, 'aria-label': 'Vista previa' });
     let current = '';
+    let lastKey = '';
 
     function pick() {
       if (scope === 'nota') return [getNote(noteId)].filter(Boolean);
+      if (scope === 'elegir') return liveNotes().filter(n => chosen.has(n.id));
       if (scope === 'filtro') return filtered;
+      if (scope === 'anio') return liveNotes().filter(n => (n.date || '').slice(0, 4) === yearSel.value);
       if (scope === 'rango') return liveNotes().filter(n => n.date && (!from.value || n.date >= from.value) && (!to.value || n.date <= to.value));
       return liveNotes();
     }
     function update() {
       const notes = pick();
-      current = notes.length ? buildExport(notes, trCheck.checked) : '';
+      const key = notes.map(n => n.id).join(',');
+      if (key !== lastKey) { lastKey = key; drawSecs(notes); }
+      if (scope === 'elegir') pickInfo.textContent = `${chosen.size} elegida${chosen.size === 1 ? '' : 's'}`;
+      current = notes.length ? buildExport(notes, inc) : '';
       preview.value = current;
       const chars = current.length;
       const tokens = Math.ceil(chars / 4);
@@ -1054,20 +1396,27 @@
         ` · ${nf(chars)} caracteres · aprox. ${nf(tokens)} tokens (estimado)`
       );
       if (tokens > 120000) stats.append(h('div', { class: 'warn', text: 'Es mucho texto para un solo chat. Probá sin transcripciones o con menos notas.' }));
-      copyBtn.disabled = !current;
+      copyBtn.disabled = dlBtn.disabled = !current;
     }
     const copyBtn = h('button', { class: 'btn primary', text: 'Copiar', onclick: async () => {
       const ok = await copyText(current);
       if (ok) { d.close(); toast('Copiado. Pegalo en el chat.'); }
       else { preview.focus(); preview.select(); toast('No se pudo copiar solo. Seleccioná el texto y copialo a mano.', 5000); }
     } });
+    const dlBtn = h('button', { class: 'btn', text: 'Descargar .txt', onclick: () => {
+      const one = scope === 'nota' ? getNote(noteId) : null;
+      const base = one && one.title ? slugify(one.title) || 'nota' : 'notas';
+      download(`${base}-${todayISO()}.txt`, current);
+      d.close();
+      toast('Archivo descargado, sin encriptar.');
+    } });
 
-    openDialog(d, 'Copiar como texto', [
-      radios, range,
-      h('label', { class: 'check' }, trCheck, h('span', { text: 'Incluir transcripciones' })),
+    openDialog(d, 'Copiar o descargar como texto', [
+      radios, range, yearBox, pickBox,
+      secBox,
       stats, preview,
-      h('p', { class: 'warn', text: 'Al pegarlo en un chat, este texto sale de tu dispositivo sin encriptar y queda en esa conversación.' })
-    ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), copyBtn]);
+      h('p', { class: 'warn', text: 'Este texto sale de tu dispositivo sin encriptar: queda en el chat donde lo pegues o en el archivo que descargues.' })
+    ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), dlBtn, copyBtn]);
     update();
   }
 
@@ -1093,10 +1442,12 @@ etiquetas: <etiqueta1, etiqueta2 o vacío>
 <mis notas, comentarios y resumen de esta nota>
 --- TRANSCRIPCION: <nombre opcional> ---
 <transcripción completa>
+--- SECCION: <categoría>: <nombre opcional> ---
+<texto de esa sección, por ejemplo un resumen o comentarios aparte>
 === NOTA ===
 <siguiente nota, mismo esquema>
 
-Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`;
+Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una misma nota. Usá SECCION solo si el texto original ya separa partes con un nombre claro (por ejemplo "Resumen" o "Comentarios"); si no, dejá todo en TEXTO.`;
 
   function trimBlank(lines) {
     let a = 0, b = lines.length;
@@ -1114,6 +1465,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
     const isNota = l => /^\s*={3,}\s*NOTA\s*={3,}\s*$/i.test(l);
     const isTexto = l => /^\s*-{3,}\s*TEXTO\s*-{3,}\s*$/i.test(l);
     const trRe = /^\s*-{3,}\s*TRANSCRIPCI[OÓ]N\s*(?::\s*(.*?))?\s*-{3,}\s*$/i;
+    const secRe = /^\s*-{3,}\s*SECCI[OÓ]N\s*:\s*([^:]*?)\s*(?::\s*(.*?))?\s*-{3,}\s*$/i;
     const headRe = /^\s*(t[ií]tulo|fecha|etiquetas)\s*:\s*(.*)$/i;
     const out = [];
     let cur = null, mode = null, tr = null;
@@ -1127,7 +1479,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
         date,
         tags: cleanField(cur.etiquetas).split(',').map(s => s.trim()).filter(Boolean),
         text: trimBlank(cur.text),
-        transcripts: cur.trs.map(t => ({ name: cleanField(t.name), text: trimBlank(t.lines) })).filter(t => t.text)
+        transcripts: cur.trs.map(t => ({ name: cleanField(t.name), text: trimBlank(t.lines), catName: cleanField(t.catName) })).filter(t => t.text)
       };
       if (!note.title) warns.push('Sin título.');
       if (!note.text && !note.transcripts.length && !note.title) { cur = null; return; }
@@ -1141,6 +1493,8 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
       if (isTexto(l)) { mode = 'text'; continue; }
       const m = l.match(trRe);
       if (m) { tr = { name: m[1] || '', lines: [] }; cur.trs.push(tr); mode = 'tr'; continue; }
+      const sm = l.match(secRe);
+      if (sm) { tr = { catName: sm[1] || '', name: sm[2] || '', lines: [] }; cur.trs.push(tr); mode = 'tr'; continue; }
       if (mode === 'head') {
         const hm = l.match(headRe);
         if (hm) {
@@ -1212,9 +1566,10 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
           const cb = h('input', { type: 'checkbox', checked: p.on });
           cb.addEventListener('change', () => { p.on = cb.checked; count(); });
           const trs = p.n.transcripts.length;
+          const secs = p.n.transcripts.filter(t => t.catName && norm(t.catName) !== 'transcripcion').map(t => t.catName);
           return h('label', { class: 'imp-item' }, cb, h('div', null,
             h('div', { class: 't', text: p.n.title || 'Sin título' }),
-            h('div', { class: 'd', text: `${fmtDate(p.n.date)} · ${nf(p.n.text.length)} caracteres` + (trs ? ` · ${trs} transcripci${trs === 1 ? 'ón' : 'ones'}` : '') + (p.n.tags.length ? ` · ${p.n.tags.join(', ')}` : '') }),
+            h('div', { class: 'd', text: `${fmtDate(p.n.date)} · ${nf(p.n.text.length)} caracteres` + (trs - secs.length ? ` · ${trs - secs.length} transcripci${trs - secs.length === 1 ? 'ón' : 'ones'}` : '') + (secs.length ? ` · ${secs.join(', ')}` : '') + (p.n.tags.length ? ` · ${p.n.tags.join(', ')}` : '') }),
             p.dup ? h('div', { class: 'w', text: 'Ya existe una nota idéntica.' }) : null,
             ...p.n.warns.map(w => h('div', { class: 'w', text: w }))
           ));
@@ -1237,7 +1592,12 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
         const n = p.n;
         S.data.notes.push({
           id: uid(), title: n.title, date: n.date, text: n.text, tags: n.tags,
-          transcripts: n.transcripts.map(t => ({ id: uid(), name: t.name, text: t.text })),
+          transcripts: n.transcripts.map(t => {
+            const o = { id: uid(), name: t.name, text: t.text };
+            const cat = t.catName ? addCat(t.catName) : TR;
+            if (cat !== TR) o.cat = cat;
+            return o;
+          }),
           createdAt: now + k, updatedAt: now + k
         });
         k++;
@@ -1257,7 +1617,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
   const BK_HEAD = 'NOTAS-APP BACKUP v1';
   async function exportBackup() {
     await flush();
-    const rec = await DB.get('vault');
+    const rec = await DB.get(vaultKey(S.sid));
     const body = b64(te.encode(JSON.stringify(rec))).replace(/(.{76})/g, '$1\n');
     download(`notas-app-backup-${todayISO()}.txt`, `${BK_HEAD}\n${body}\n`);
     toast('Backup descargado. Se abre con la contraseña actual.', 4500);
@@ -1306,6 +1666,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
       } catch { toast('Contraseña incorrecta.'); }
     }
     const r = mergeNotes(Array.isArray(data.notes) ? data.notes : []);
+    mergeCats(data.cats);
     scheduleSave();
     renderList();
     if (ui.current) renderEditor(); else showEmpty();
@@ -1327,11 +1688,16 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
       ok.disabled = true; ok.textContent = 'Cambiando…';
       try {
         await flush();
-        const rec = await DB.get('vault');
+        const rec = await DB.get(vaultKey(S.sid));
         const k = await deriveKey(cur.value, S.salt, S.iter);
         await unseal(k, rec);
       } catch {
         msg.textContent = 'La contraseña actual no es correcta.';
+        ok.disabled = false; ok.textContent = 'Cambiar';
+        return;
+      }
+      if (await openAny(p1.value, S.sid)) {
+        msg.textContent = 'Esa contraseña ya abre otra sesión de este dispositivo. Usá una distinta.';
         ok.disabled = false; ok.textContent = 'Cambiar';
         return;
       }
@@ -1366,12 +1732,11 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
       clearTimeout(saveTimer); saveTimer = null;
       await saveChain;
       S = null;
-      await DB.del('vault');
-      await DB.del('drive').catch(() => {});
+      await wipeAll();
       location.reload();
     });
     openDialog(d, 'Borrar todo', [
-      h('p', { text: 'Se borran todas las notas de este dispositivo. Si no tenés un backup, no se pueden recuperar.' }),
+      h('p', { text: 'Se borran todas las notas de este dispositivo, de todas las sesiones. Si no tenés un backup ni Drive conectado, no se pueden recuperar.' }),
       conf
     ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
   }
@@ -1379,7 +1744,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
 
   /* ---------- Sincronización con Google Drive ---------- */
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-  const DRIVE_NAME = 'notas-app-vault.txt';
+  const driveName = () => (S && S.data.profile && S.data.profile.driveFile) || 'notas-app-vault.txt';
   const DRIVE_FOLDER = 'notas-app';
   const API = 'https://www.googleapis.com/drive/v3';
   const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
@@ -1390,7 +1755,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
   function driveConfigured() { return !!CFG.googleClientId; }
   function driveOn() { return driveConfigured() && !!(driveMeta && driveMeta.enabled); }
   function tokenValid() { return !!(driveMeta && driveMeta.token && Date.now() < (driveMeta.exp || 0) - 60000); }
-  function saveMeta() { return driveMeta ? DB.put('drive', driveMeta).catch(() => {}) : Promise.resolve(); }
+  function saveMeta() { return driveMeta && S ? DB.put(driveKey(S.sid), driveMeta).catch(() => {}) : Promise.resolve(); }
 
   function loadGis() {
     if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
@@ -1429,8 +1794,24 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
     }
     return new Promise((res, rej) => {
       G.waiter = { res, rej };
-      G.client.requestAccessToken({ prompt: driveMeta && driveMeta.consented ? '' : 'consent' });
-    });
+      const cfg = { prompt: driveMeta && driveMeta.consented ? '' : 'consent select_account' };
+      if (driveMeta && driveMeta.email) cfg.login_hint = driveMeta.email;
+      G.client.requestAccessToken(cfg);
+    }).then(checkAccount);
+  }
+  // Cada sesión queda atada a la cuenta de Google con la que se conectó, para no mezclar Drives.
+  async function checkAccount() {
+    let email = '';
+    try {
+      const r = await gfetch(`${API}/about?fields=user(emailAddress)`);
+      if (r.ok) { const j = await r.json(); email = (j.user && j.user.emailAddress) || ''; }
+    } catch (e) { if (e instanceof NeedAuth) throw e; return; }
+    if (!email || !driveMeta) return;
+    if (driveMeta.email && driveMeta.email !== email) {
+      driveMeta.token = null; saveMeta();
+      throw new Error(`Elegiste otra cuenta de Google. Esta sesión está conectada a ${driveMeta.email}.`);
+    }
+    if (!driveMeta.email) { driveMeta.email = email; saveMeta(); }
   }
   function googleErr(e) {
     const m = (e && e.message) || '';
@@ -1464,7 +1845,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
       else if (r.status !== 404) throw new Error('Drive respondió ' + r.status);
       driveMeta.fileId = null;
     }
-    const j = await gjson(`${API}/files?q=${qe(`name='${DRIVE_NAME}' and trashed=false`)}&fields=files(id,modifiedTime)&orderBy=modifiedTime%20desc&spaces=drive`);
+    const j = await gjson(`${API}/files?q=${qe(`name='${driveName()}' and trashed=false`)}&fields=files(id,modifiedTime)&orderBy=modifiedTime%20desc&spaces=drive`);
     if (j.files && j.files.length) { driveMeta.fileId = j.files[0].id; saveMeta(); return driveMeta.fileId; }
     return null;
   }
@@ -1489,7 +1870,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
     const folder = await ensureFolder();
     const bd = 'notasapp' + Math.random().toString(36).slice(2);
     const body = `--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-      JSON.stringify({ name: DRIVE_NAME, parents: [folder], mimeType: 'text/plain' }) +
+      JSON.stringify({ name: driveName(), parents: [folder], mimeType: 'text/plain' }) +
       `\r\n--${bd}\r\nContent-Type: text/plain\r\n\r\n${text}\r\n--${bd}--`;
     const j = await gjson(`${UPLOAD}/files?uploadType=multipart&fields=id`, { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + bd }, body });
     driveMeta.fileId = j.id;
@@ -1507,7 +1888,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
   }
 
   function sameContent(a, b) {
-    const pick = n => JSON.stringify([n.title, n.date, n.text, n.tags, (n.transcripts || []).map(t => [t.name, t.text])]);
+    const pick = n => JSON.stringify([n.title, n.date, n.text, n.tags, (n.transcripts || []).map(t => [t.name, t.text, t.cat || ''])]);
     return pick(a) === pick(b);
   }
   function mergeRemote(remoteNotes) {
@@ -1549,6 +1930,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
         const key = await deriveKey(pw, salt, remote.iter);
         const data = await unseal(key, remote);
         if (!S) return null;
+        if (await openAny(pw, S.sid)) { toast('Esa contraseña ya abre otra sesión de este dispositivo. Para unir estas notas, usá una contraseña distinta en cada sesión.', 7000); return null; }
         S.key = key; S.salt = salt; S.iter = remote.iter;
         return data;
       } catch { toast('Contraseña incorrecta.'); }
@@ -1580,12 +1962,13 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
         if (!data) { G.pending = hadPending; setSync('error', 'Falta la contraseña de las notas en Drive.'); return; }
         if (S !== s) return;
         res = mergeRemote(Array.isArray(data.notes) ? data.notes : []);
+        if (mergeCats(data.cats)) res.changed = true;
       }
       G.forcePush = false;
       if (S !== s) return;
       s.data.syncBase = Object.fromEntries(s.data.notes.map(n => [n.id, n.updatedAt || 0]));
       await queueSave();
-      const rec = await DB.get('vault');
+      const rec = await DB.get(vaultKey(s.sid));
       await uploadText(recToText(rec));
       driveMeta.lastSync = Date.now();
       saveMeta();
@@ -1670,7 +2053,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
   async function disconnectDrive() {
     if (!(await confirmBox('¿Desconectar Google Drive? El archivo encriptado queda en tu Drive y este dispositivo deja de sincronizar.', 'Desconectar'))) return;
     driveMeta = null;
-    await DB.del('drive').catch(() => {});
+    await DB.del(driveKey(S.sid)).catch(() => {});
     G.state = 'idle';
     renderSync();
     toast('Drive desconectado en este dispositivo.');
@@ -1700,8 +2083,11 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
         h('p', { text: 'El navegador no deja guardar datos. Si estás en modo incógnito, abrí la app en una ventana normal.' }))));
       return;
     }
-    driveMeta = (await DB.get('drive').catch(() => null)) || null;
-    if (driveOn()) loadGis().catch(() => {});
+    // Precarga Google solo si alguna sesión de este dispositivo usa Drive.
+    for (const x of await listSessions().catch(() => [])) {
+      const m = await DB.get(driveKey(x.id)).catch(() => null);
+      if (m && m.enabled && driveConfigured()) { loadGis().catch(() => {}); break; }
+    }
     showLock();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   }
