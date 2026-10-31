@@ -1,9 +1,10 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const LOCK_MS = 5 * 60 * 1000;
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
+  const CFG = window.NOTAS_CONFIG || {};
   const te = new TextEncoder();
   const td = new TextDecoder();
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -184,6 +185,7 @@
     setStatus('Guardando…');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { saveTimer = null; queueSave(); }, 600);
+    syncSoon();
   }
   async function flush() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; queueSave(); }
@@ -205,6 +207,9 @@
   async function lock() {
     if (!S) return;
     await flush();
+    if (driveOn() && G.pending && tokenValid()) {
+      try { await Promise.race([syncNow(), new Promise(r => setTimeout(r, 8000))]); } catch { /* sigue */ }
+    }
     S = null;
     ui.current = null; ui.query = ''; ui.tags.clear();
     for (const d of [$('#dlg'), $('#dlg2')]) { if (d.open) d.close(); d.replaceChildren(); }
@@ -290,6 +295,8 @@
     conf.addEventListener('input', () => { ok.disabled = conf.value.trim() !== 'BORRAR'; });
     ok.addEventListener('click', async () => {
       await DB.del('vault');
+      await DB.del('drive').catch(() => {});
+      driveMeta = null;
       $('#dlg2').close();
       toast('Datos borrados de este dispositivo.');
       showLock();
@@ -335,6 +342,7 @@
     buildSidebar();
     renderList();
     showEmpty();
+    driveAfterUnlock();
   }
 
   function buildSidebar() {
@@ -346,6 +354,7 @@
         h('button', { class: 'btn ghost icon', title: 'Bloquear', 'aria-label': 'Bloquear', html: I.lock, onclick: () => lock() }),
         h('button', { class: 'btn ghost icon', title: 'Menú', 'aria-label': 'Menú', html: I.menu, onclick: menuDialog })
       ),
+      h('button', { class: 'sync-row', id: 'sync-row', type: 'button', hidden: !driveOn(), onclick: syncTap }),
       h('div', { class: 'side-tools' },
         h('button', { class: 'btn primary', onclick: newNote, html: I.plus + '<span>Nueva nota</span>' }),
         search
@@ -353,6 +362,7 @@
       h('div', { class: 'tagbar', id: 'tagbar' }),
       h('div', { class: 'list', id: 'list' })
     );
+    renderSync();
   }
 
   function renderList() {
@@ -401,7 +411,7 @@
     S.data.notes.push(n);
     scheduleSave();
     openNote(n.id);
-    setTimeout(() => { const t = $('.ed-title'); if (t) t.focus(); }, 30);
+    const t = $('.ed-title'); if (t) t.focus();
   }
 
   function openNote(id) {
@@ -602,6 +612,7 @@
   /* ---------- Menú ---------- */
   function menuDialog() {
     const d = $('#dlg');
+    if (driveConfigured()) loadGis().catch(() => {});
     const go = fn => () => { d.close(); fn(); };
     openDialog(d, 'Menú', [h('div', { class: 'menu' },
       h('button', { class: 'btn', text: 'Copiar notas como texto para un chat', onclick: go(() => exportDialog(null)) }),
@@ -609,6 +620,13 @@
       h('hr'),
       h('button', { class: 'btn', text: 'Descargar backup encriptado', onclick: go(exportBackup) }),
       h('button', { class: 'btn', text: 'Restaurar backup encriptado', onclick: go(importBackup) }),
+      driveConfigured() ? [
+        h('hr'),
+        driveOn()
+          ? h('button', { class: 'btn', text: 'Sincronizar con Drive ahora', onclick: go(syncTap) })
+          : h('button', { class: 'btn', text: 'Conectar Google Drive', onclick: go(connectDrive) }),
+        driveOn() ? h('button', { class: 'btn', text: 'Desconectar Google Drive', onclick: go(disconnectDrive) }) : null
+      ] : null,
       h('hr'),
       h('button', { class: 'btn', text: 'Cambiar contraseña', onclick: go(changePasswordDialog) }),
       h('button', { class: 'btn', text: 'Bloquear ahora', onclick: go(lock) }),
@@ -960,11 +978,20 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
         ok.disabled = false; ok.textContent = 'Cambiar';
         return;
       }
+      if (driveOn()) {
+        if (tokenValid()) await syncNow();
+        if (!tokenValid() || G.state !== 'ok') {
+          msg.textContent = 'Primero sincronizá con Drive: tocá el estado de sincronización, arriba a la izquierda.';
+          ok.disabled = false; ok.textContent = 'Cambiar';
+          return;
+        }
+      }
       const salt = crypto.getRandomValues(new Uint8Array(16));
       S.key = await deriveKey(p1.value, salt, KDF_ITER);
       S.salt = salt; S.iter = KDF_ITER;
       cur.value = p1.value = p2.value = '';
       await queueSave();
+      if (driveOn()) { G.forcePush = true; syncNow(); }
       d.close();
       toast('Contraseña cambiada. Los backups viejos siguen abriéndose con la anterior.', 5000);
     });
@@ -983,6 +1010,7 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
       await saveChain;
       S = null;
       await DB.del('vault');
+      await DB.del('drive').catch(() => {});
       location.reload();
     });
     openDialog(d, 'Borrar todo', [
@@ -990,6 +1018,314 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
       conf
     ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
   }
+
+
+  /* ---------- Sincronización con Google Drive ---------- */
+  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+  const DRIVE_NAME = 'notas-app-vault.txt';
+  const DRIVE_FOLDER = 'notas-app';
+  const API = 'https://www.googleapis.com/drive/v3';
+  const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
+  let driveMeta = null; // { enabled, consented, fileId, folderId, token, exp, lastSync }
+  const G = { client: null, gis: null, waiter: null, busy: false, again: false, pending: false, forcePush: false, state: 'idle', detail: '', timer: null };
+  class NeedAuth extends Error { constructor() { super('auth'); } }
+
+  function driveConfigured() { return !!CFG.googleClientId; }
+  function driveOn() { return driveConfigured() && !!(driveMeta && driveMeta.enabled); }
+  function tokenValid() { return !!(driveMeta && driveMeta.token && Date.now() < (driveMeta.exp || 0) - 60000); }
+  function saveMeta() { return driveMeta ? DB.put('drive', driveMeta).catch(() => {}) : Promise.resolve(); }
+
+  function loadGis() {
+    if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+    if (G.gis) return G.gis;
+    G.gis = new Promise((res, rej) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://accounts.google.com/gsi/client';
+      sc.async = true;
+      sc.onload = () => res();
+      sc.onerror = () => { G.gis = null; rej(new Error('No se pudo cargar Google.')); };
+      document.head.append(sc);
+    });
+    return G.gis;
+  }
+  function initClient() {
+    if (G.client || !(window.google && google.accounts && google.accounts.oauth2)) return;
+    G.client = google.accounts.oauth2.initTokenClient({
+      client_id: CFG.googleClientId,
+      scope: DRIVE_SCOPE,
+      callback: r => {
+        const w = G.waiter; G.waiter = null;
+        if (!r || r.error || !r.access_token) { if (w) w.rej(new Error((r && r.error) || 'sin_token')); return; }
+        driveMeta = Object.assign(driveMeta || {}, { token: r.access_token, exp: Date.now() + (Number(r.expires_in) || 3600) * 1000, consented: true });
+        saveMeta();
+        if (w) w.res();
+      },
+      error_callback: e => { const w = G.waiter; G.waiter = null; if (w) w.rej(new Error((e && e.type) || 'popup')); }
+    });
+  }
+  // Se llama dentro de un toque del usuario, sin esperas antes, para que el navegador permita la ventana de Google.
+  function askToken() {
+    initClient();
+    if (!G.client) {
+      loadGis().catch(() => {});
+      return Promise.reject(new Error('Google todavía está cargando. Probá de nuevo en unos segundos.'));
+    }
+    return new Promise((res, rej) => {
+      G.waiter = { res, rej };
+      G.client.requestAccessToken({ prompt: driveMeta && driveMeta.consented ? '' : 'consent' });
+    });
+  }
+  function googleErr(e) {
+    const m = (e && e.message) || '';
+    if (/popup_closed|access_denied/.test(m)) return 'No se completó el acceso a Google.';
+    if (/popup_failed/.test(m)) return 'El navegador bloqueó la ventana de Google. Probá de nuevo.';
+    return m || 'No se pudo conectar con Google.';
+  }
+
+  async function gfetch(url, opts = {}) {
+    if (!tokenValid()) throw new NeedAuth();
+    let r;
+    try {
+      r = await fetch(url, Object.assign({}, opts, { headers: Object.assign({ Authorization: 'Bearer ' + driveMeta.token }, opts.headers || {}) }));
+    } catch {
+      const e = new Error('offline'); e.offline = true; throw e;
+    }
+    if (r.status === 401) { driveMeta.token = null; saveMeta(); throw new NeedAuth(); }
+    return r;
+  }
+  async function gjson(url, opts) {
+    const r = await gfetch(url, opts);
+    if (!r.ok) throw new Error('Drive respondió ' + r.status);
+    return r.json();
+  }
+  const qe = v => encodeURIComponent(v);
+
+  async function findFile() {
+    if (driveMeta.fileId) {
+      const r = await gfetch(`${API}/files/${driveMeta.fileId}?fields=id,trashed`);
+      if (r.ok) { const j = await r.json(); if (!j.trashed) return j.id; }
+      else if (r.status !== 404) throw new Error('Drive respondió ' + r.status);
+      driveMeta.fileId = null;
+    }
+    const j = await gjson(`${API}/files?q=${qe(`name='${DRIVE_NAME}' and trashed=false`)}&fields=files(id,modifiedTime)&orderBy=modifiedTime%20desc&spaces=drive`);
+    if (j.files && j.files.length) { driveMeta.fileId = j.files[0].id; saveMeta(); return driveMeta.fileId; }
+    return null;
+  }
+  async function ensureFolder() {
+    if (driveMeta.folderId) return driveMeta.folderId;
+    const j = await gjson(`${API}/files?q=${qe(`name='${DRIVE_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)}&fields=files(id)&spaces=drive`);
+    if (j.files && j.files.length) driveMeta.folderId = j.files[0].id;
+    else {
+      driveMeta.folderId = (await gjson(`${API}/files?fields=id`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: DRIVE_FOLDER, mimeType: 'application/vnd.google-apps.folder' })
+      })).id;
+    }
+    saveMeta();
+    return driveMeta.folderId;
+  }
+  async function uploadText(text) {
+    if (driveMeta.fileId) {
+      await gjson(`${UPLOAD}/files/${driveMeta.fileId}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'text/plain' }, body: text });
+      return;
+    }
+    const folder = await ensureFolder();
+    const bd = 'notasapp' + Math.random().toString(36).slice(2);
+    const body = `--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+      JSON.stringify({ name: DRIVE_NAME, parents: [folder], mimeType: 'text/plain' }) +
+      `\r\n--${bd}\r\nContent-Type: text/plain\r\n\r\n${text}\r\n--${bd}--`;
+    const j = await gjson(`${UPLOAD}/files?uploadType=multipart&fields=id`, { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + bd }, body });
+    driveMeta.fileId = j.id;
+    saveMeta();
+  }
+
+  function recToText(rec) { return `${BK_HEAD}\n${b64(te.encode(JSON.stringify(rec))).replace(/(.{76})/g, '$1\n')}\n`; }
+  function textToRec(txt) {
+    const lines = txt.replace(/\r/g, '').split('\n');
+    const i = lines.findIndex(l => l.trim() === BK_HEAD);
+    if (i < 0) throw new Error('El archivo de Drive no tiene el formato esperado.');
+    const rec = JSON.parse(td.decode(unb64(lines.slice(i + 1).join(''))));
+    if (rec.format !== 'notas-app-vault') throw new Error('El archivo de Drive no tiene el formato esperado.');
+    return rec;
+  }
+
+  function sameContent(a, b) {
+    const pick = n => JSON.stringify([n.title, n.date, n.text, n.tags, (n.transcripts || []).map(t => [t.name, t.text])]);
+    return pick(a) === pick(b);
+  }
+  function mergeRemote(remoteNotes) {
+    const base = S.data.syncBase || {};
+    const idx = new Map(S.data.notes.map((n, i) => [n.id, i]));
+    const now = Date.now();
+    let changed = false, conflicts = 0;
+    const replaced = new Set();
+    const copyOf = (n, label) => Object.assign(JSON.parse(JSON.stringify(n)), {
+      id: uid(), title: `${n.title || 'Sin título'} (${label})`,
+      transcripts: (n.transcripts || []).map(t => Object.assign({}, t, { id: uid() })),
+      createdAt: now, updatedAt: now + conflicts
+    });
+    for (const r of remoteNotes) {
+      if (!r || !r.id) continue;
+      if (!idx.has(r.id)) { S.data.notes.push(r); idx.set(r.id, S.data.notes.length - 1); changed = true; continue; }
+      const i = idx.get(r.id);
+      const l = S.data.notes[i];
+      const ru = r.updatedAt || 0, lu = l.updatedAt || 0, b = base[r.id] || 0;
+      if (ru === lu) continue;
+      const bothLive = !l.deleted && !r.deleted;
+      if (ru > lu) {
+        if (bothLive && lu > b && !sameContent(l, r)) { S.data.notes.push(copyOf(l, 'versión en conflicto')); conflicts++; }
+        S.data.notes[i] = r; replaced.add(r.id); changed = true;
+      } else if (bothLive && ru > b && !sameContent(l, r)) {
+        S.data.notes.push(copyOf(r, 'versión en conflicto')); conflicts++; changed = true;
+      }
+    }
+    return { changed, conflicts, replaced };
+  }
+
+  async function unlockRemote(remote) {
+    for (;;) {
+      const pw = await askPassword('Contraseña de las notas en Drive',
+        'Las notas guardadas en Drive usan otra contraseña, o la cambiaste en otro dispositivo. Ingresala para unirlas. Desde ahora, este dispositivo también va a usar esa contraseña.');
+      if (pw == null) return null;
+      try {
+        const salt = unb64(remote.salt);
+        const key = await deriveKey(pw, salt, remote.iter);
+        const data = await unseal(key, remote);
+        if (!S) return null;
+        S.key = key; S.salt = salt; S.iter = remote.iter;
+        return data;
+      } catch { toast('Contraseña incorrecta.'); }
+    }
+  }
+
+  async function syncNow() {
+    if (!S || !driveOn()) return;
+    if (G.busy) { G.again = true; return; }
+    if (!tokenValid()) { setSync('auth'); return; }
+    if (!navigator.onLine) { setSync('offline'); return; }
+    const s = S;
+    const hadPending = G.pending;
+    G.busy = true; G.pending = false;
+    setSync('sync');
+    try {
+      await flush();
+      const fileId = await findFile();
+      let res = { changed: false, conflicts: 0, replaced: new Set() };
+      if (fileId && !G.forcePush) {
+        const r = await gfetch(`${API}/files/${fileId}?alt=media`);
+        if (!r.ok) throw new Error('Drive respondió ' + r.status);
+        const remote = textToRec(await r.text());
+        let data = null;
+        if (remote.salt === b64(s.salt) && remote.iter === s.iter) {
+          try { data = await unseal(s.key, remote); } catch { data = null; }
+        }
+        if (!data) data = await unlockRemote(remote);
+        if (!data) { G.pending = hadPending; setSync('error', 'Falta la contraseña de las notas en Drive.'); return; }
+        if (S !== s) return;
+        res = mergeRemote(Array.isArray(data.notes) ? data.notes : []);
+      }
+      G.forcePush = false;
+      if (S !== s) return;
+      s.data.syncBase = Object.fromEntries(s.data.notes.map(n => [n.id, n.updatedAt || 0]));
+      await queueSave();
+      const rec = await DB.get('vault');
+      await uploadText(recToText(rec));
+      driveMeta.lastSync = Date.now();
+      saveMeta();
+      setSync('ok');
+      if (res.changed && S === s) {
+        renderList();
+        if (ui.current) {
+          if (!getNote(ui.current)) { if (history.state && history.state.note && narrow()) history.back(); else closeEditor(); }
+          else if (res.replaced.has(ui.current)) renderEditor();
+        } else showEmpty();
+      }
+      if (res.conflicts) toast(`${res.conflicts === 1 ? 'Una nota se editó' : res.conflicts + ' notas se editaron'} en dos dispositivos a la vez: quedaron las dos versiones.`, 7000);
+    } catch (e) {
+      G.pending = G.pending || hadPending;
+      if (e instanceof NeedAuth) setSync('auth');
+      else if (e && e.offline) setSync('offline');
+      else { console.error(e); setSync('error', (e && e.message) || String(e)); }
+    } finally {
+      G.busy = false;
+      if (G.again) { G.again = false; syncSoon(1500); }
+    }
+  }
+
+  function syncSoon(ms = 8000) {
+    if (!driveOn()) return;
+    G.pending = true;
+    clearTimeout(G.timer);
+    G.timer = setTimeout(() => {
+      if (!S) return;
+      if (tokenValid()) syncNow(); else setSync('auth');
+    }, ms);
+  }
+
+  function setSync(state, detail = '') { G.state = state; G.detail = detail; renderSync(); }
+  function ago(t) {
+    if (!t) return '';
+    const m = Math.round((Date.now() - t) / 60000);
+    if (m < 1) return 'recién';
+    if (m < 60) return `hace ${m} min`;
+    return 'a las ' + new Date(t).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  }
+  function renderSync() {
+    const el = document.getElementById('sync-row');
+    if (!el) return;
+    el.hidden = !driveOn();
+    if (el.hidden) return;
+    const txt = {
+      idle: 'Drive conectado',
+      sync: 'Sincronizando…',
+      ok: 'Sincronizado ' + ago(driveMeta && driveMeta.lastSync),
+      auth: 'Tocá para sincronizar con Drive',
+      offline: 'Sin conexión, se sincroniza después',
+      error: 'No se sincronizó. Tocá para reintentar'
+    }[G.state] || '';
+    el.textContent = txt;
+    el.dataset.state = G.state;
+    el.title = G.detail || '';
+  }
+  setInterval(() => { if (G.state === 'ok') renderSync(); }, 30000);
+
+  function syncTap() {
+    if (!driveOn()) return;
+    if (G.state === 'error' && G.detail) toast(G.detail, 5000);
+    if (tokenValid()) { syncNow(); return; }
+    askToken().then(() => syncNow()).catch(e => { setSync('auth'); toast(googleErr(e), 5000); });
+  }
+  function driveAfterUnlock() {
+    if (!driveOn()) return;
+    renderSync();
+    if (tokenValid()) { syncNow(); return; }
+    const active = navigator.userActivation ? navigator.userActivation.isActive : false;
+    if (active && window.google && google.accounts && google.accounts.oauth2) {
+      askToken().then(() => syncNow()).catch(() => setSync('auth'));
+    } else setSync('auth');
+  }
+  function connectDrive() {
+    driveMeta = Object.assign(driveMeta || {}, { enabled: true });
+    askToken()
+      .then(async () => { await saveMeta(); renderSync(); toast('Drive conectado.'); await syncNow(); })
+      .catch(e => { driveMeta.enabled = false; saveMeta(); renderSync(); toast(googleErr(e), 5000); });
+  }
+  async function disconnectDrive() {
+    if (!(await confirmBox('¿Desconectar Google Drive? El archivo encriptado queda en tu Drive y este dispositivo deja de sincronizar.', 'Desconectar'))) return;
+    driveMeta = null;
+    await DB.del('drive').catch(() => {});
+    G.state = 'idle';
+    renderSync();
+    toast('Drive desconectado en este dispositivo.');
+  }
+
+  setInterval(() => { if (S && driveOn() && tokenValid() && !document.hidden) syncNow(); }, 3 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (!S || !driveOn() || !tokenValid()) return;
+    if (document.hidden) { if (G.pending) syncNow(); }
+    else syncNow();
+  });
+  addEventListener('online', () => { if (S && driveOn() && tokenValid()) syncNow(); });
 
   /* ---------- Inicio ---------- */
   async function boot() {
@@ -1007,6 +1343,8 @@ Los bloques TRANSCRIPCION son opcionales y se pueden repetir en una misma nota.`
         h('p', { text: 'El navegador no deja guardar datos. Si estás en modo incógnito, abrí la app en una ventana normal.' }))));
       return;
     }
+    driveMeta = (await DB.get('drive').catch(() => null)) || null;
+    if (driveOn()) loadGis().catch(() => {});
     showLock();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   }

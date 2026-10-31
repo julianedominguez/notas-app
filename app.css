@@ -235,3 +235,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--f
   .dlg-foot .btn { flex: 1; }
 }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Estado de sincronización */
+.sync-row {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 12px 8px; padding: 7px 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  font-size: 13px; color: var(--muted); cursor: pointer; text-align: left;
+}
+.sync-row::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.sync-row[data-state=ok]::before { background: var(--accent); }
+.sync-row[data-state=sync]::before { background: var(--accent); animation: pulse .8s infinite alternate; }
+.sync-row[data-state=auth]::before, .sync-row[data-state=error]::before { background: #d08a1c; }
+.sync-row[data-state=auth], .sync-row[data-state=error] { color: var(--ink); }
+@keyframes pulse { to { opacity: .25; } }
