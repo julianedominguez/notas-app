@@ -31,6 +31,14 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 - Atajos al escribir: `# ` título, `## ` subtítulo, `- ` viñeta, `1. ` lista, `[ ] ` tarea, `> ` cita.
 - Se puede crear una nota desde un archivo .docx (respeta títulos, listas, negrita y cursiva; las tablas quedan como filas de texto) o pegar desde Google Docs y Word.
 - Índice de títulos para saltar dentro de notas largas, tamaño de letra ajustable y modo foco que oculta la lista.
+- La barra de formato queda siempre fija arriba. La fila de navegación y las pestañas se esconden al bajar o al abrir el teclado, y vuelven al subir.
+- Escritura centrada (botón Aa): al tocar o escribir, la pantalla se acomoda para que el cursor quede cerca del medio. Viene activada en el celu.
+
+## Lista de notas
+
+- Arriba: botón de Drive (verde sincronizado, ámbar con cambios sin subir o para reconectar, rojo si falló, gris sin conectar; un toque sincroniza o conecta), lupa con buscador y filtros (etiquetas, año o rango de fechas, notas con cierta sección) y el menú. "Bloquear ahora" es la primera opción del menú.
+- Botón + abajo a la derecha para una nota nueva.
+- Toque largo en una nota para elegir varias y copiarlas, descargarlas o borrarlas juntas.
 - Las notas que quedan completamente vacías se borran solas al salir de ellas, igual que las secciones vacías.
 
 ## Copiar o descargar como texto

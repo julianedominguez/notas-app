@@ -1,4 +1,4 @@
-const CACHE = 'notas-app-v1.3.0';
+const CACHE = 'notas-app-v1.4.0';
 const ASSETS = ['./', './index.html', './app.css', './app.js', './config.js', './vendor/editor.js', './vendor/mammoth.browser.min.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => {

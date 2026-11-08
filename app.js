@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '1.4.0';
   const LOCK_MS = 5 * 60 * 1000;
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
@@ -28,6 +28,10 @@
     undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>',
     redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg>',
     outline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M8 11h12M8 16h12M4 11h.01M4 16h.01"/></svg>',
+    app: '<svg viewBox="0 0 24 24"><rect class="am-bg" x="1" y="1" width="22" height="22" rx="6.5"/><rect class="am-pg" x="7.2" y="5.2" width="9.6" height="13.6" rx="1.3"/><path class="am-ln" d="M9.6 9.6h4.8M9.6 12h4.8M9.6 14.4h3.2"/></svg>',
+    cloud: '<svg class="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7.2 18.5h9.9a3.9 3.9 0 0 0 .5-7.77A5.6 5.6 0 0 0 6.9 9.8a4.35 4.35 0 0 0 .3 8.7z"/></svg>',
+    spin: '<svg class="i-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 0 1-13.1 5"/><path d="M4.5 12a7.5 7.5 0 0 1 13.1-5"/><path d="M17.8 3.6v3.6h-3.6M6.2 20.4v-3.6h3.6"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>',
     note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h5M9 12h7M9 15.5h7"/></svg>'
   };
 
@@ -209,7 +213,7 @@
 
   /* ---------- Sesión ---------- */
   let S = null; // { sid, key, salt, iter, data: { v, notes, cats, profile } }
-  const ui = { query: '', tags: new Set(), current: null };
+  const ui = { query: '', tags: new Set(), year: '', from: '', to: '', cats: new Set(), rangeOpen: false, searchOpen: false, sel: null, current: null };
 
   let saveTimer = null;
   let saveChain = Promise.resolve();
@@ -261,7 +265,8 @@
     driveMeta = null;
     clearTimeout(G.timer);
     G.state = 'idle'; G.detail = ''; G.pending = false; G.forcePush = false;
-    ui.current = null; ui.query = ''; ui.tags.clear();
+    ui.current = null; clearFilters(); ui.searchOpen = false; ui.rangeOpen = false; ui.sel = null;
+    document.body.classList.remove('selecting');
     for (const d of [$('#dlg'), $('#dlg2')]) { if (d.open) d.close(); d.replaceChildren(); }
     $('#sidebar').replaceChildren();
     $('#editor').replaceChildren();
@@ -547,15 +552,29 @@
   function sortNotes(arr) {
     return arr.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.updatedAt - a.updatedAt);
   }
+  function filterActive() {
+    return !!(ui.query.trim() || ui.tags.size || ui.year || ui.from || ui.to || ui.cats.size);
+  }
   function filteredNotes() {
     const q = norm(ui.query.trim());
     const tags = [...ui.tags];
+    const cats = [...ui.cats];
     return sortNotes(liveNotes().filter(n => {
       if (tags.length && !tags.every(t => (n.tags || []).some(x => norm(x) === t))) return false;
+      if (ui.year && (n.date || '').slice(0, 4) !== ui.year) return false;
+      if (ui.from && !(n.date && n.date >= ui.from)) return false;
+      if (ui.to && !(n.date && n.date <= ui.to)) return false;
+      if (cats.length && !cats.every(c => (n.transcripts || []).some(t => catOf(t) === c && (t.text || '').trim()))) return false;
       if (!q) return true;
       const hay = norm([n.title, n.text, (n.tags || []).join(' '), ...(n.transcripts || []).map(t => t.name + ' ' + t.text)].join('\n'));
       return q.split(/\s+/).every(w => hay.includes(w));
     }));
+  }
+  function clearFilters() {
+    ui.query = ''; ui.tags.clear(); ui.year = ''; ui.from = ''; ui.to = ''; ui.cats.clear();
+    const s = $('#search'); if (s) s.value = '';
+    const f = $('#f-from'); if (f) f.value = '';
+    const t = $('#f-to'); if (t) t.value = '';
   }
 
   function startApp() {
@@ -571,53 +590,194 @@
   }
 
   function buildSidebar() {
-    const search = h('input', { type: 'search', placeholder: 'Buscar en notas y transcripciones', 'aria-label': 'Buscar', value: ui.query });
+    const search = h('input', { type: 'search', id: 'search', placeholder: 'Buscar en notas y secciones', 'aria-label': 'Buscar', value: ui.query, autocomplete: 'off' });
     search.addEventListener('input', debounce(() => { ui.query = search.value; renderList(); }, 150));
+    const from = h('input', { type: 'date', id: 'f-from', 'aria-label': 'Desde', value: ui.from });
+    const to = h('input', { type: 'date', id: 'f-to', 'aria-label': 'Hasta', value: ui.to });
+    from.addEventListener('change', () => { ui.from = from.value; ui.year = ''; renderList(); });
+    to.addEventListener('change', () => { ui.to = to.value; ui.year = ''; renderList(); });
     $('#sidebar').replaceChildren(
-      h('div', { class: 'side-head' },
-        h('div', { class: 'brand' }, 'notas-app', S.multi ? h('span', { class: 'brand-s', text: S.data.profile.name }) : null),
-        h('button', { class: 'btn ghost icon', title: 'Bloquear', 'aria-label': 'Bloquear', html: I.lock, onclick: () => lock() }),
+      h('div', { class: 'side-head', id: 'side-head' },
+        h('div', { class: 'brand', title: 'notas-app' + (S.multi ? ' · ' + S.data.profile.name : '') },
+          h('span', { class: 'app-mark', html: I.app, 'aria-label': 'notas-app', role: 'img' }),
+          S.multi ? h('span', { class: 'brand-s', text: S.data.profile.name }) : null),
+        h('button', { class: 'btn ghost icon sync-btn', id: 'sync-btn', type: 'button', hidden: !driveConfigured(), onclick: syncBtnTap, html: I.cloud + I.spin + '<span class="sync-badge"></span>' }),
+        h('button', { class: 'btn ghost icon search-btn', id: 'search-btn', type: 'button', title: 'Buscar y filtrar', 'aria-label': 'Buscar y filtrar', 'aria-expanded': ui.searchOpen ? 'true' : 'false', html: I.search + '<span class="dot"></span>', onclick: toggleSearch }),
         h('button', { class: 'btn ghost icon', title: 'Menú', 'aria-label': 'Menú', html: I.menu, onclick: menuDialog })
       ),
-      h('button', { class: 'sync-row', id: 'sync-row', type: 'button', hidden: !driveOn(), onclick: syncTap }),
-      h('div', { class: 'side-tools' },
-        h('button', { class: 'btn primary', onclick: newNote, html: I.plus + '<span>Nueva nota</span>' }),
-        search
+      h('div', { class: 'sel-bar', id: 'sel-bar', hidden: true }),
+      h('div', { class: 'search-panel', id: 'search-panel', hidden: !ui.searchOpen },
+        search,
+        h('div', { class: 'f-group', id: 'f-tags' }),
+        h('div', { class: 'f-group', id: 'f-dates' }),
+        h('div', { class: 'range f-range', id: 'f-range', hidden: true },
+          h('label', { class: 'field' }, h('span', { text: 'Desde' }), from),
+          h('label', { class: 'field' }, h('span', { text: 'Hasta' }), to)),
+        h('div', { class: 'f-group', id: 'f-cats' })
       ),
-      h('div', { class: 'tagbar', id: 'tagbar' }),
-      h('div', { class: 'list', id: 'list' })
+      h('div', { class: 'filter-line', id: 'filter-line', hidden: true }),
+      h('div', { class: 'list', id: 'list' }),
+      h('button', { class: 'fab', id: 'fab', type: 'button', title: 'Nueva nota', 'aria-label': 'Nueva nota', html: I.plus, onclick: newNote })
     );
     renderSync();
   }
 
-  function renderList() {
-    if (!S) return;
-    const tagbar = $('#tagbar');
+  function toggleSearch() {
+    ui.searchOpen = !ui.searchOpen;
+    $('#search-panel').hidden = !ui.searchOpen;
+    $('#search-btn').setAttribute('aria-expanded', ui.searchOpen ? 'true' : 'false');
+    renderList();
+    if (ui.searchOpen) setTimeout(() => $('#search').focus(), 30);
+  }
+
+  function chipBtn(label, on, onclick, count) {
+    return h('button', { class: 'chip' + (on ? ' on' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', onclick },
+      label, count != null ? h('span', { class: 'muted', text: String(count) }) : null);
+  }
+  function renderFilters() {
     const tags = allTags();
     for (const t of [...ui.tags]) if (!tags.some(x => norm(x.name) === t)) ui.tags.delete(t);
-    tagbar.replaceChildren(...tags.map(t => h('button', {
-      class: 'chip' + (ui.tags.has(norm(t.name)) ? ' on' : ''),
-      onclick: () => { const k = norm(t.name); ui.tags.has(k) ? ui.tags.delete(k) : ui.tags.add(k); renderList(); }
-    }, t.name, h('span', { class: 'muted', text: String(t.count) }))));
-    tagbar.hidden = tags.length === 0;
+    const years = [...new Set(liveNotes().map(n => (n.date || '').slice(0, 4)).filter(Boolean))].sort().reverse();
+    if (ui.year && !years.includes(ui.year)) ui.year = '';
+    const present = new Set();
+    for (const n of liveNotes()) for (const t of n.transcripts || []) if ((t.text || '').trim()) present.add(catOf(t));
+    for (const c of [...ui.cats]) if (!present.has(c)) ui.cats.delete(c);
 
+    const fl = $('#filter-line');
+    const active = filterActive();
+    $('#search-btn').classList.toggle('has-filter', active);
+    if (active) {
+      const parts = [];
+      if (ui.query.trim()) parts.push(`"${ui.query.trim()}"`);
+      for (const t of ui.tags) { const x = tags.find(y => norm(y.name) === t); parts.push('#' + (x ? x.name : t)); }
+      if (ui.year) parts.push(ui.year);
+      if (ui.from || ui.to) parts.push((ui.from ? fmtDate(ui.from) : '…') + ' a ' + (ui.to ? fmtDate(ui.to) : 'hoy'));
+      for (const c of ui.cats) parts.push('con ' + catName(c).toLowerCase());
+      const count = filteredNotes().length;
+      fl.replaceChildren(
+        h('span', { class: 'fl-t', text: `${count} nota${count === 1 ? '' : 's'} · ${parts.join(' · ')}` }),
+        h('button', { class: 'x', type: 'button', 'aria-label': 'Quitar filtros', text: '×', onclick: () => { clearFilters(); renderList(); } })
+      );
+    }
+    fl.hidden = !active;
+    if (!ui.searchOpen) return;
+
+    const label = t => h('div', { class: 'f-label', text: t });
+    $('#f-tags').replaceChildren(...(tags.length ? [label('Etiquetas'), h('div', { class: 'chips' }, tags.map(t => {
+      const k = norm(t.name);
+      return chipBtn(t.name, ui.tags.has(k), () => { ui.tags.has(k) ? ui.tags.delete(k) : ui.tags.add(k); renderList(); }, t.count);
+    }))] : []));
+    const rangeOn = !ui.year && !!(ui.from || ui.to || ui.rangeOpen);
+    $('#f-dates').replaceChildren(label('Fecha'), h('div', { class: 'chips' },
+      chipBtn('Todas', !ui.year && !rangeOn, () => { ui.year = ''; ui.from = ''; ui.to = ''; ui.rangeOpen = false; $('#f-from').value = ''; $('#f-to').value = ''; renderList(); }),
+      years.map(y => chipBtn(y, ui.year === y, () => { ui.year = ui.year === y ? '' : y; ui.from = ''; ui.to = ''; ui.rangeOpen = false; $('#f-from').value = ''; $('#f-to').value = ''; renderList(); })),
+      chipBtn('Rango…', rangeOn, () => { ui.year = ''; ui.rangeOpen = !rangeOn; if (!ui.rangeOpen) { ui.from = ''; ui.to = ''; $('#f-from').value = ''; $('#f-to').value = ''; } renderList(); })
+    ));
+    $('#f-range').hidden = !rangeOn;
+    const cats = [...present].sort((a, b) => (a === TR ? -1 : b === TR ? 1 : catName(a).localeCompare(catName(b))));
+    $('#f-cats').replaceChildren(...(cats.length ? [label('Con sección'), h('div', { class: 'chips' }, cats.map(c =>
+      chipBtn(catName(c), ui.cats.has(c), () => { ui.cats.has(c) ? ui.cats.delete(c) : ui.cats.add(c); renderList(); })))] : []));
+  }
+
+  /* ---------- Selección múltiple (toque largo en una nota) ---------- */
+  let longFired = false; // el toque largo que recién terminó no cuenta como toque
+  function longPress(el, onLong) {
+    let t = 0, sx = 0, sy = 0;
+    el.addEventListener('pointerdown', e => {
+      if (e.button) return;
+      sx = e.clientX; sy = e.clientY;
+      longFired = false;
+      clearTimeout(t);
+      t = setTimeout(() => { longFired = true; if (navigator.vibrate) navigator.vibrate(12); onLong(); }, 480);
+    });
+    const cancel = () => clearTimeout(t);
+    el.addEventListener('pointermove', e => { if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel(); });
+    el.addEventListener('pointerup', cancel);
+    el.addEventListener('pointercancel', cancel);
+    el.addEventListener('pointerleave', cancel);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  function startSelect(id) {
+    if (!ui.sel) ui.sel = new Set();
+    ui.sel.add(id);
+    renderList();
+  }
+  function endSelect() { ui.sel = null; renderList(); }
+  function renderSelBar() {
+    const bar = $('#sel-bar');
+    const on = !!ui.sel;
+    bar.hidden = !on;
+    $('#side-head').hidden = on;
+    $('#fab').hidden = on;
+    document.body.classList.toggle('selecting', on);
+    if (!on) return;
+    const n = ui.sel.size;
+    const visible = filteredNotes();
+    const allOn = visible.length > 0 && visible.every(x => ui.sel.has(x.id));
+    bar.replaceChildren(
+      h('button', { class: 'btn ghost icon', type: 'button', 'aria-label': 'Salir de la selección', title: 'Salir de la selección', text: '×', onclick: endSelect }),
+      h('span', { class: 'sel-n', text: n === 1 ? '1 elegida' : `${n} elegidas` }),
+      h('button', { class: 'btn ghost small', type: 'button', text: allOn ? 'Ninguna' : 'Todas', onclick: () => { if (allOn) ui.sel.clear(); else visible.forEach(x => ui.sel.add(x.id)); renderList(); } }),
+      h('button', { class: 'btn ghost icon', type: 'button', title: 'Copiar o descargar como texto', 'aria-label': 'Copiar o descargar como texto', html: I.copy, disabled: !n, onclick: () => { const ids = [...ui.sel]; endSelect(); exportDialog(null, ids); } }),
+      h('button', { class: 'btn ghost icon danger', type: 'button', title: 'Eliminar', 'aria-label': 'Eliminar las elegidas', html: I.trash, disabled: !n, onclick: deleteSelected })
+    );
+  }
+  async function deleteSelected() {
+    const ids = [...ui.sel].filter(id => getNote(id));
+    if (!ids.length) return;
+    if (!(await confirmBox(ids.length === 1 ? '¿Eliminar la nota elegida? No se puede deshacer.' : `¿Eliminar las ${ids.length} notas elegidas? No se puede deshacer.`, 'Eliminar', true))) return;
+    if (ui.current && ids.includes(ui.current)) {
+      if (ED) ED.dirty = false;
+      destroyEditor();
+      ui.current = null;
+      document.body.classList.remove('show-editor');
+      showEmpty();
+    }
+    const now = Date.now();
+    for (const id of ids) {
+      const i = S.data.notes.findIndex(x => x.id === id);
+      if (i >= 0) S.data.notes[i] = { id, deleted: true, updatedAt: now };
+    }
+    scheduleSave();
+    ui.sel = null;
+    renderList();
+    toast(ids.length === 1 ? 'Nota eliminada.' : `${ids.length} notas eliminadas.`);
+  }
+
+  function renderList() {
+    if (!S) return;
+    if (ui.sel) for (const id of [...ui.sel]) if (!getNote(id)) ui.sel.delete(id);
+    renderFilters();
+    renderSelBar();
     const list = $('#list');
+    list.classList.toggle('selecting', !!ui.sel);
     const notes = filteredNotes();
     if (!notes.length) {
       const total = liveNotes().length;
-      list.replaceChildren(h('div', { class: 'list-empty', text: total ? 'Ninguna nota coincide.' : 'Todavía no hay notas.' }));
+      list.replaceChildren(h('div', { class: 'list-empty', text: total ? 'Ninguna nota coincide.' : 'Todavía no hay notas. Tocá + para crear una.' }));
       return;
     }
     list.replaceChildren(...notes.map(n => {
       const trs = (n.transcripts || []).length;
       const allTr = (n.transcripts || []).every(t => catOf(t) === TR);
       const snip = plainSnippet(n.text).slice(0, 160);
-      return h('button', { class: 'item' + (n.id === ui.current ? ' active' : ''), onclick: () => openNote(n.id) },
+      const picked = !!(ui.sel && ui.sel.has(n.id));
+      const el = h('button', {
+        class: 'item' + (n.id === ui.current && !ui.sel ? ' active' : '') + (picked ? ' picked' : ''),
+        'aria-pressed': ui.sel ? (picked ? 'true' : 'false') : null,
+        onclick: () => {
+          if (longFired) { longFired = false; return; }
+          if (ui.sel) { picked ? ui.sel.delete(n.id) : ui.sel.add(n.id); if (!ui.sel.size) ui.sel = null; renderList(); return; }
+          openNote(n.id);
+        }
+      },
         h('div', { class: 'item-title' + (n.title ? '' : ' untitled'), text: n.title || 'Sin título' }),
         h('div', { class: 'item-meta', text: fmtDate(n.date) + (!trs ? '' : allTr ? ` · ${trs} transcripci${trs === 1 ? 'ón' : 'ones'}` : ` · ${trs} secci${trs === 1 ? 'ón' : 'ones'}`) }),
         snip ? h('div', { class: 'item-snip', text: snip }) : null,
         (n.tags || []).length ? h('div', { class: 'item-tags' }, n.tags.map(t => h('span', { text: t }))) : null
       );
+      longPress(el, () => { if (ui.sel) { ui.sel.add(n.id); renderList(); } else startSelect(n.id); });
+      return el;
     }));
   }
   const renderListSoon = debounce(renderList, 300);
@@ -627,17 +787,32 @@
   try { Object.assign(PREF, JSON.parse(localStorage.getItem('notas-app-prefs') || '{}')); } catch { /* sin preferencias guardadas */ }
   const SIZES = [['s', 'Letra chica'], ['m', 'Letra normal'], ['l', 'Letra grande'], ['xl', 'Letra muy grande']];
   function savePrefs() { try { localStorage.setItem('notas-app-prefs', JSON.stringify(PREF)); } catch { /* sin almacenamiento */ } }
+  // Escritura centrada: activada de entrada en el celu, apagada en la PC.
+  if (typeof PREF.center !== 'boolean') { PREF.center = narrow(); savePrefs(); }
   function applyPrefs() {
     document.documentElement.dataset.size = PREF.size;
     document.body.classList.toggle('focus-mode', !!PREF.focus);
+    document.body.classList.toggle('center-on', !!PREF.center);
   }
   applyPrefs();
-  function cycleSize() {
-    const i = SIZES.findIndex(s => s[0] === PREF.size);
-    const next = SIZES[(i + 1) % SIZES.length];
-    PREF.size = next[0]; savePrefs(); applyPrefs();
-    toast(next[1] + '.', 1500);
-    const ta = $('.tr-text'); if (ta) autosize(ta);
+  function readingDialog() {
+    const d = $('#dlg2');
+    const radios = h('div', { class: 'radio-list' }, SIZES.map(([k, label]) => {
+      const r = h('input', { type: 'radio', name: 'size', value: k, checked: PREF.size === k });
+      r.addEventListener('change', () => {
+        PREF.size = k; savePrefs(); applyPrefs();
+        const ta = $('.tr-text'); if (ta) autosize(ta);
+      });
+      return h('label', null, r, h('span', { class: 'sz-' + k, text: label }));
+    }));
+    const cb = h('input', { type: 'checkbox', checked: !!PREF.center });
+    cb.addEventListener('change', () => { PREF.center = cb.checked; savePrefs(); applyPrefs(); });
+    openDialog(d, 'Lectura y escritura', [
+      radios,
+      h('label', { class: 'check' }, cb, h('span', null,
+        h('span', { text: 'Escritura centrada' }),
+        h('span', { class: 'muted small block', text: 'Al tocar o escribir, la pantalla se acomoda para que el cursor quede cerca del medio y no abajo de todo.' })))
+    ], [h('button', { class: 'btn', text: 'Listo', onclick: () => d.close() })]);
   }
   function toggleFocus() {
     PREF.focus = !PREF.focus; savePrefs(); applyPrefs();
@@ -739,6 +914,7 @@
     showEmpty();
     renderList();
   }
+  addEventListener('keydown', e => { if (e.key === 'Escape' && S && ui.sel && !$('#dlg').open && !$('#dlg2').open) endSelect(); });
   addEventListener('popstate', () => { if (S && ui.current && narrow()) closeEditor(); });
   function goBack() {
     if (history.state && history.state.note) history.back();
@@ -765,7 +941,8 @@
     const n = getNote(ui.current);
     if (!n) { closeEditor(); return; }
     if (view.tab !== 'nota' && !n.transcripts.some(t => t.id === view.tab)) view.tab = 'nota';
-    const head = h('div', { class: 'ed-head' }, edBar(n), edTabs(n));
+    const nav = h('div', { class: 'ed-nav' }, edBar(n), edTabs(n));
+    const head = h('div', { class: 'ed-head' }, nav);
     const pane = h('div', { class: 'ed-pane' });
     $('#editor').replaceChildren(head, pane);
     if (view.tab === 'nota') notePane(n, head, pane);
@@ -774,6 +951,84 @@
       if (isPlain(catOf(t))) trPane(n, t, pane);
       else secPane(n, t, head, pane);
     }
+    measureNav();
+  }
+
+  /* ---------- Cabecera de la nota: la fila de navegación se va con el scroll, la barra de formato queda ---------- */
+  let navY = 0;
+  let autoScrollUntil = 0;
+  function measureNav() {
+    const head = $('.ed-head'); const nav = $('.ed-nav');
+    if (!head || !nav) return;
+    head.style.setProperty('--navh', nav.offsetHeight + 'px');
+  }
+  function setNav(show) {
+    const head = $('.ed-head');
+    if (!head) return;
+    if (!show) measureNav();
+    head.classList.toggle('nav-off', !show);
+  }
+  function navHidden() { const head = $('.ed-head'); return !!(head && head.classList.contains('nav-off')); }
+  function onEditorScroll() {
+    const sc = $('#editor');
+    const y = sc.scrollTop;
+    const dy = y - navY;
+    navY = y;
+    if (y < 24) { setNav(true); return; }
+    // Solo el scroll que hace la persona con el dedo o la rueda mueve la navegación, no el automático.
+    if (Date.now() < autoScrollUntil || Date.now() - userScrollAt > 700) return;
+    if (dy > 6) setNav(false);
+    else if (dy < -6) setNav(true);
+  }
+  let userScrollAt = 0;
+  $('#editor').addEventListener('scroll', onEditorScroll, { passive: true });
+  for (const ev of ['touchmove', 'wheel']) $('#editor').addEventListener(ev, () => { userScrollAt = Date.now(); }, { passive: true });
+  $('#editor').addEventListener('keydown', e => { if (/^(PageUp|PageDown|Home|End)$/.test(e.key) && !e.target.isContentEditable) userScrollAt = Date.now(); });
+  // Con el teclado abierto en el celu se esconde la navegación; al cerrarlo vuelve.
+  let lastH = innerHeight;
+  addEventListener('resize', () => {
+    const grew = innerHeight - lastH > 120;
+    const shrank = lastH - innerHeight > 120;
+    lastH = innerHeight;
+    if (!ui.current) return;
+    if (grew) setNav(true);
+    if (shrank && document.body.classList.contains('editing')) { setNav(false); centerSoon(true); }
+    measureNav();
+  });
+
+  /* ---------- Escritura centrada: el cursor queda cerca del 40% de la pantalla ---------- */
+  function centerOn() { return !!PREF.center; }
+  function centerCaret(smooth) {
+    if (!ED || !centerOn()) return;
+    const v = ED.editor.view;
+    if (!v.hasFocus()) return;
+    const sc = $('#editor');
+    let c;
+    try { c = v.coordsAtPos(v.state.selection.head); } catch { return; }
+    const r = sc.getBoundingClientRect();
+    const head = $('.ed-head');
+    let headVis = 0;
+    if (head) {
+      const navh = parseFloat(getComputedStyle(head).getPropertyValue('--navh')) || 0;
+      headVis = head.offsetHeight - (navHidden() ? navh : 0);
+    }
+    const vv = window.visualViewport;
+    const top = r.top + headVis;
+    const bottom = Math.min(r.bottom, vv ? vv.offsetTop + vv.height : innerHeight);
+    const avail = bottom - top;
+    if (avail < 100) return;
+    const y = (c.top + c.bottom) / 2;
+    const rel = (y - top) / avail;
+    if (rel > 0.25 && rel < 0.6) return; // zona muerta: no mover por poco
+    const delta = Math.round(y - (top + avail * 0.4));
+    if (Math.abs(delta) < 4) return;
+    autoScrollUntil = Date.now() + (smooth ? 600 : 150);
+    sc.scrollBy({ top: delta, behavior: smooth ? 'smooth' : 'auto' });
+  }
+  let centerT = 0;
+  function centerSoon(smooth, ms = 180) {
+    clearTimeout(centerT);
+    centerT = setTimeout(() => centerCaret(smooth), ms);
   }
 
   function edBar(n) {
@@ -781,7 +1036,7 @@
       h('button', { class: 'btn ghost icon only-narrow', 'aria-label': 'Volver', html: I.back, onclick: goBack }),
       h('button', { class: 'btn ghost icon only-wide', id: 'focus-btn', title: PREF.focus ? 'Mostrar la lista de notas' : 'Modo foco: ocultar la lista de notas', 'aria-label': 'Modo foco', html: I.focus, onclick: toggleFocus }),
       h('span', { class: 'status', id: 'ed-status', text: 'Guardado' }),
-      h('button', { class: 'btn ghost icon', title: 'Tamaño de letra', 'aria-label': 'Tamaño de letra', html: '<span class="aa">Aa</span>', onclick: cycleSize }),
+      h('button', { class: 'btn ghost icon', title: 'Letra y escritura centrada', 'aria-label': 'Letra y escritura centrada', html: '<span class="aa">Aa</span>', onclick: readingDialog }),
       h('button', { class: 'btn ghost', title: 'Copiar esta nota como texto', onclick: () => exportDialog(n.id), html: I.copy + '<span class="label">Copiar para chat</span>' }),
       h('button', { class: 'btn ghost icon', title: 'Más opciones', 'aria-label': 'Más opciones de la nota', html: I.menu, onclick: () => noteMenu(n) })
     );
@@ -900,7 +1155,11 @@
       contentType: 'markdown',
       editorProps: {
         attributes: { class: 'prose-ed', 'aria-label': label, spellcheck: 'true' },
-        transformPastedHTML: cleanPastedHTML
+        transformPastedHTML: cleanPastedHTML,
+        scrollMargin: { top: 130, bottom: 60, left: 0, right: 0 },
+        scrollThreshold: { top: 130, bottom: 60, left: 0, right: 0 },
+        // Con escritura centrada, el scroll lo maneja centerCaret.
+        handleScrollToSelection: () => centerOn()
       },
       onUpdate: () => {
         if (!ED) return;
@@ -908,15 +1167,25 @@
         setStatus('Guardando…');
         clearTimeout(ED.timer);
         ED.timer = setTimeout(commitEditor, 500);
+        typedAt = Date.now();
+        if (centerOn()) { clearTimeout(centerT); requestAnimationFrame(() => centerCaret(false)); }
+      },
+      onSelectionUpdate: () => {
+        if (centerOn() && Date.now() - typedAt > 80) centerSoon(true, 220);
       },
       onTransaction: () => updateFmtSoon(),
-      onFocus: () => document.body.classList.add('editing'),
+      onFocus: () => {
+        document.body.classList.add('editing');
+        if (narrow()) setNav(false);
+        if (centerOn()) centerSoon(true, 350);
+      },
       onBlur: () => document.body.classList.remove('editing')
     });
     ED = { editor, note: n, target, dirty: false, timer: null, fmt, onText };
     updateFmt();
   }
 
+  let typedAt = 0;
   let fmtRaf = 0;
   function updateFmtSoon() { if (!fmtRaf) fmtRaf = requestAnimationFrame(() => { fmtRaf = 0; updateFmt(); }); }
   function updateFmt() {
@@ -943,7 +1212,9 @@
     const B = (k, label, title, fn, html) => {
       const b = h('button', { class: 'fb' + (html ? ' ico' : ''), type: 'button', title, 'aria-label': title, 'data-k': k, onclick: run(fn) });
       if (html) b.innerHTML = html; else b.textContent = label;
+      // Que tocar un botón no le saque el foco al texto (si no, el teclado se cierra y se vuelve a abrir).
       b.addEventListener('mousedown', e => e.preventDefault());
+      b.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') e.preventDefault(); });
       return b;
     };
     const sep = () => h('span', { class: 'fsep', 'aria-hidden': 'true' });
@@ -1230,6 +1501,8 @@
     if (driveConfigured()) loadGis().catch(() => {});
     const go = fn => () => { d.close(); fn(); };
     openDialog(d, 'Menú', [h('div', { class: 'menu' },
+      h('button', { class: 'btn', html: I.lock + '<span>' + (S.multi ? 'Bloquear ahora o cambiar de sesión' : 'Bloquear ahora') + '</span>', onclick: go(lock) }),
+      h('hr'),
       h('button', { class: 'btn', text: 'Copiar o descargar notas como texto', onclick: go(() => exportDialog(null)) }),
       h('button', { class: 'btn', text: 'Importar notas desde texto', onclick: go(importDialog) }),
       h('button', { class: 'btn', text: 'Nueva nota desde un archivo .docx', onclick: go(newNoteFromDocx) }),
@@ -1239,6 +1512,7 @@
       h('button', { class: 'btn', text: 'Restaurar backup encriptado', onclick: go(importBackup) }),
       driveConfigured() ? [
         h('hr'),
+        driveOn() ? h('p', { class: 'muted small sync-detail', text: syncVisual()[1] + (G.detail ? '. ' + G.detail : '') }) : null,
         driveOn()
           ? h('button', { class: 'btn', text: 'Sincronizar con Drive ahora', onclick: go(syncTap) })
           : h('button', { class: 'btn', text: 'Conectar Google Drive', onclick: go(connectDrive) }),
@@ -1246,7 +1520,6 @@
       ] : null,
       h('hr'),
       h('button', { class: 'btn', text: 'Cambiar contraseña', onclick: go(changePasswordDialog) }),
-      h('button', { class: 'btn', text: S.multi ? 'Bloquear o cambiar de sesión' : 'Bloquear ahora', onclick: go(lock) }),
       h('button', { class: 'btn', text: 'Crear otra sesión', onclick: go(newSessionDialog) }),
       h('hr'),
       S.multi ? h('button', { class: 'btn danger', text: 'Eliminar esta sesión de este dispositivo', onclick: go(deleteSessionDialog) }) : null,
@@ -1278,20 +1551,20 @@
     return ordered.map(n => noteToText(n, inc)).join('\n========\n\n');
   }
 
-  function exportDialog(noteId) {
+  function exportDialog(noteId, preIds) {
     commitEditor();
     const d = $('#dlg');
     const filtered = filteredNotes();
-    const isFiltered = ui.query.trim() || ui.tags.size;
+    const isFiltered = filterActive();
     const years = [...new Set(liveNotes().map(n => (n.date || '').slice(0, 4)).filter(Boolean))].sort().reverse();
     const opts = [];
     if (noteId) opts.push(['nota', 'Solo esta nota']);
     opts.push(['elegir', 'Elegir notas']);
     opts.push(['todas', `Todas las notas (${liveNotes().length})`]);
-    if (isFiltered) opts.push(['filtro', `Las que coinciden con la búsqueda actual (${filtered.length})`]);
+    if (isFiltered) opts.push(['filtro', `Las que coinciden con la búsqueda o el filtro (${filtered.length})`]);
     if (years.length) opts.push(['anio', 'Un año']);
     opts.push(['rango', 'Un rango de fechas']);
-    let scope = noteId ? 'nota' : 'todas';
+    let scope = noteId ? 'nota' : preIds && preIds.length ? 'elegir' : 'todas';
 
     // Rango
     const from = h('input', { type: 'date', 'aria-label': 'Desde' });
@@ -1306,7 +1579,7 @@
     yearSel.addEventListener('change', update);
 
     // Elegir notas
-    const chosen = new Set(noteId ? [noteId] : []);
+    const chosen = new Set(noteId ? [noteId] : preIds || []);
     const pickQ = h('input', { type: 'search', placeholder: 'Buscar por título, fecha o etiqueta', 'aria-label': 'Buscar notas' });
     const pickList = h('div', { class: 'imp-list pick-list' });
     const pickInfo = h('span', { class: 'muted small' });
@@ -1994,7 +2267,7 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
 
   function syncSoon(ms = 8000) {
     if (!driveOn()) return;
-    G.pending = true;
+    if (!G.pending) { G.pending = true; renderSync(); }
     clearTimeout(G.timer);
     G.timer = setTimeout(() => {
       if (!S) return;
@@ -2010,25 +2283,45 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
     if (m < 60) return `hace ${m} min`;
     return 'a las ' + new Date(t).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   }
+  // Estado visual del botón de sincronización: [clase, texto].
+  function syncVisual() {
+    if (!driveOn()) return ['off', 'Drive no está conectado. Tocá para conectarlo'];
+    if (G.state === 'sync') return ['sync', 'Sincronizando…'];
+    if (G.state === 'error') return ['error', 'No se sincronizó. Tocá para reintentar'];
+    if (G.state === 'auth') return ['warn', 'Hay que reconectar Drive. Tocá para conectar'];
+    if (G.state === 'offline') return ['offline', 'Sin conexión, se sincroniza después'];
+    if (G.pending) return ['warn', 'Hay cambios sin subir. Tocá para sincronizar'];
+    if (G.state === 'ok') return ['ok', 'Sincronizado ' + ago(driveMeta && driveMeta.lastSync)];
+    return ['idle', 'Drive conectado. Tocá para sincronizar'];
+  }
   function renderSync() {
-    const el = document.getElementById('sync-row');
+    const el = document.getElementById('sync-btn');
     if (!el) return;
-    el.hidden = !driveOn();
+    el.hidden = !driveConfigured();
     if (el.hidden) return;
-    const txt = {
-      idle: 'Drive conectado',
-      sync: 'Sincronizando…',
-      ok: 'Sincronizado ' + ago(driveMeta && driveMeta.lastSync),
-      auth: 'Tocá para sincronizar con Drive',
-      offline: 'Sin conexión, se sincroniza después',
-      error: 'No se sincronizó. Tocá para reintentar'
-    }[G.state] || '';
-    el.textContent = txt;
-    el.dataset.state = G.state;
-    el.title = G.detail || '';
+    const [st, txt] = syncVisual();
+    el.dataset.state = st;
+    el.title = txt + (G.detail && st === 'error' ? '. ' + G.detail : '');
+    el.setAttribute('aria-label', el.title);
   }
   setInterval(() => { if (G.state === 'ok') renderSync(); }, 30000);
 
+  function syncBtnTap() {
+    if (!driveOn()) { connectDialog(); return; }
+    if (G.state === 'sync') { toast('Sincronizando…', 1500); return; }
+    syncTap();
+  }
+  function connectDialog() {
+    const d = $('#dlg2');
+    loadGis().catch(() => {});
+    openDialog(d, 'Sincronizar con Google Drive', [
+      h('p', { text: 'Tus notas se suben encriptadas a una carpeta "notas-app" de tu Drive y se mantienen iguales entre tus dispositivos.' }),
+      h('p', { class: 'muted small', text: 'La app solo ve los archivos que ella misma crea. Nadie puede leer las notas sin tu contraseña.' })
+    ], [
+      h('button', { class: 'btn', text: 'Ahora no', onclick: () => d.close() }),
+      h('button', { class: 'btn primary', text: 'Conectar', onclick: () => { d.close(); connectDrive(); } })
+    ]);
+  }
   function syncTap() {
     if (!driveOn()) return;
     if (G.state === 'error' && G.detail) toast(G.detail, 5000);
