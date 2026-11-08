@@ -431,3 +431,16 @@ body.center-on .ed-body { padding-bottom: calc(45vh + env(safe-area-inset-bottom
 .sel-bar > .btn.icon:first-child { font-size: 24px; }
 .sel-n { flex: 1; font-weight: 600; padding-left: 4px; }
 .btn.icon.danger { color: var(--danger); }
+
+/* 1.4.1: teclado y tooltips */
+body.kbd .ed-nav { display: none; }
+body.kbd .ed-head.nav-off { transform: none; }
+button, [data-tip] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.tip {
+  position: fixed; z-index: 60; max-width: min(300px, calc(100vw - 16px));
+  background: var(--ink); color: var(--bg); border-radius: 8px; padding: 6px 10px;
+  font-size: 13px; line-height: 1.35; pointer-events: none;
+}
+.tip strong { font-weight: 600; display: block; }
+.tip.rich { padding: 10px 12px; }
+.tip.rich span { display: block; margin-top: 3px; opacity: .85; }

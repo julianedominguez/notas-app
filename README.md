@@ -39,6 +39,13 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 - Arriba: botón de Drive (verde sincronizado, ámbar con cambios sin subir o para reconectar, rojo si falló, gris sin conectar; un toque sincroniza o conecta), lupa con buscador y filtros (etiquetas, año o rango de fechas, notas con cierta sección) y el menú. "Bloquear ahora" es la primera opción del menú.
 - Botón + abajo a la derecha para una nota nueva.
 - Toque largo en una nota para elegir varias y copiarlas, descargarlas o borrarlas juntas.
+- Toque largo en cualquier botón: muestra qué hace, sin ejecutarlo. En el de Drive dice el estado (Sincronizado, Cambios sin subir, Error al sincronizar, etc.) y qué hacer.
+- El nombre chico al lado del ícono es la sesión abierta. Solo aparece si en el dispositivo hay más de una sesión.
+
+## Celu
+
+- La fila de navegación se guarda solo cuando el teclado está abierto, y vuelve al cerrarlo.
+- El subrayado de errores de ortografía viene apagado en el celu (botón Aa), porque en Android tocar una palabra subrayada abre las sugerencias y cierra el teclado.
 - Las notas que quedan completamente vacías se borran solas al salir de ellas, igual que las secciones vacías.
 
 ## Copiar o descargar como texto

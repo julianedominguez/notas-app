@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.4.0';
+  const APP_VERSION = '1.4.1';
   const LOCK_MS = 5 * 60 * 1000;
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
@@ -598,7 +598,7 @@
     to.addEventListener('change', () => { ui.to = to.value; ui.year = ''; renderList(); });
     $('#sidebar').replaceChildren(
       h('div', { class: 'side-head', id: 'side-head' },
-        h('div', { class: 'brand', title: 'notas-app' + (S.multi ? ' · ' + S.data.profile.name : '') },
+        h('div', { class: 'brand', 'data-tip': S.multi ? `Sesión abierta: ${S.data.profile.name}. Hay más de una sesión en este dispositivo y cada contraseña abre la suya.` : 'notas-app ' + APP_VERSION },
           h('span', { class: 'app-mark', html: I.app, 'aria-label': 'notas-app', role: 'img' }),
           S.multi ? h('span', { class: 'brand-s', text: S.data.profile.name }) : null),
         h('button', { class: 'btn ghost icon sync-btn', id: 'sync-btn', type: 'button', hidden: !driveConfigured(), onclick: syncBtnTap, html: I.cloud + I.spin + '<span class="sync-badge"></span>' }),
@@ -789,6 +789,9 @@
   function savePrefs() { try { localStorage.setItem('notas-app-prefs', JSON.stringify(PREF)); } catch { /* sin almacenamiento */ } }
   // Escritura centrada: activada de entrada en el celu, apagada en la PC.
   if (typeof PREF.center !== 'boolean') { PREF.center = narrow(); savePrefs(); }
+  // Corrector del navegador: en Android, tocar una palabra subrayada abre el menú de sugerencias y cierra el teclado.
+  // Por eso viene apagado en el celu (el teclado sigue sugiriendo y corrigiendo).
+  if (typeof PREF.spell !== 'boolean') { PREF.spell = !narrow(); savePrefs(); }
   function applyPrefs() {
     document.documentElement.dataset.size = PREF.size;
     document.body.classList.toggle('focus-mode', !!PREF.focus);
@@ -807,11 +810,19 @@
     }));
     const cb = h('input', { type: 'checkbox', checked: !!PREF.center });
     cb.addEventListener('change', () => { PREF.center = cb.checked; savePrefs(); applyPrefs(); });
+    const sp = h('input', { type: 'checkbox', checked: !!PREF.spell });
+    sp.addEventListener('change', () => {
+      PREF.spell = sp.checked; savePrefs();
+      document.querySelectorAll('.prose-ed').forEach(el => el.setAttribute('spellcheck', PREF.spell ? 'true' : 'false'));
+    });
     openDialog(d, 'Lectura y escritura', [
       radios,
       h('label', { class: 'check' }, cb, h('span', null,
         h('span', { text: 'Escritura centrada' }),
-        h('span', { class: 'muted small block', text: 'Al tocar o escribir, la pantalla se acomoda para que el cursor quede cerca del medio y no abajo de todo.' })))
+        h('span', { class: 'muted small block', text: 'Al tocar o escribir, la pantalla se acomoda para que el cursor quede cerca del medio y no abajo de todo.' }))),
+      h('label', { class: 'check' }, sp, h('span', null,
+        h('span', { text: 'Subrayar errores de ortografía' }),
+        h('span', { class: 'muted small block', text: 'En el celu conviene apagado: si está prendido, tocar una palabra subrayada abre las sugerencias y cierra el teclado. El teclado igual sigue corrigiendo.' })))
     ], [h('button', { class: 'btn', text: 'Listo', onclick: () => d.close() })]);
   }
   function toggleFocus() {
@@ -974,6 +985,7 @@
     const y = sc.scrollTop;
     const dy = y - navY;
     navY = y;
+    if (document.body.classList.contains('kbd')) return; // con teclado la navegación ya está guardada
     if (y < 24) { setNav(true); return; }
     // Solo el scroll que hace la persona con el dedo o la rueda mueve la navegación, no el automático.
     if (Date.now() < autoScrollUntil || Date.now() - userScrollAt > 700) return;
@@ -985,16 +997,21 @@
   for (const ev of ['touchmove', 'wheel']) $('#editor').addEventListener(ev, () => { userScrollAt = Date.now(); }, { passive: true });
   $('#editor').addEventListener('keydown', e => { if (/^(PageUp|PageDown|Home|End)$/.test(e.key) && !e.target.isContentEditable) userScrollAt = Date.now(); });
   // Con el teclado abierto en el celu se esconde la navegación; al cerrarlo vuelve.
-  let lastH = innerHeight;
-  addEventListener('resize', () => {
-    const grew = innerHeight - lastH > 120;
-    const shrank = lastH - innerHeight > 120;
-    lastH = innerHeight;
-    if (!ui.current) return;
-    if (grew) setNav(true);
-    if (shrank && document.body.classList.contains('editing')) { setNav(false); centerSoon(true); }
+  // Teclado abierto = la ventana se achicó bastante respecto de su alto máximo (con el mismo ancho).
+  let baseH = innerHeight, baseW = innerWidth;
+  function checkKeyboard() {
+    if (innerWidth !== baseW) { baseW = innerWidth; baseH = innerHeight; }
+    if (innerHeight > baseH) baseH = innerHeight;
+    const open = narrow() && baseH - innerHeight > 150;
+    const was = document.body.classList.contains('kbd');
+    if (open === was) return;
+    document.body.classList.toggle('kbd', open);
+    setNav(true);
     measureNav();
-  });
+    if (open) centerSoon(true, 120);
+  }
+  addEventListener('resize', checkKeyboard);
+  if (window.visualViewport) visualViewport.addEventListener('resize', checkKeyboard);
 
   /* ---------- Escritura centrada: el cursor queda cerca del 40% de la pantalla ---------- */
   function centerOn() { return !!PREF.center; }
@@ -1154,7 +1171,7 @@
       content: target.text || '',
       contentType: 'markdown',
       editorProps: {
-        attributes: { class: 'prose-ed', 'aria-label': label, spellcheck: 'true' },
+        attributes: { class: 'prose-ed', 'aria-label': label, spellcheck: PREF.spell ? 'true' : 'false' },
         transformPastedHTML: cleanPastedHTML,
         scrollMargin: { top: 130, bottom: 60, left: 0, right: 0 },
         scrollThreshold: { top: 130, bottom: 60, left: 0, right: 0 },
@@ -1176,7 +1193,6 @@
       onTransaction: () => updateFmtSoon(),
       onFocus: () => {
         document.body.classList.add('editing');
-        if (narrow()) setNav(false);
         if (centerOn()) centerSoon(true, 350);
       },
       onBlur: () => document.body.classList.remove('editing')
@@ -1452,6 +1468,49 @@
     toast('Nota creada desde el .docx.');
   }
 
+  /* ---------- Toque largo en un botón: muestra qué hace (como los tooltips de Android) ---------- */
+  const tip = h('div', { class: 'tip', id: 'tip', role: 'tooltip', hidden: true });
+  document.body.append(tip);
+  let tipTimer = 0, tipHide = 0, tipFired = false, tipX = 0, tipY = 0;
+  function tipFor(el) {
+    if (el.id === 'sync-btn') { const [, name, why] = syncVisual(); return { title: 'Drive: ' + name, body: why }; }
+    const t = el.dataset.tip || el.getAttribute('title') || el.getAttribute('aria-label');
+    return t ? { title: t } : null;
+  }
+  function showTip(el) {
+    const info = tipFor(el);
+    if (!info) return;
+    tip.replaceChildren(h('strong', { text: info.title }), info.body ? h('span', { text: info.body }) : null);
+    tip.classList.toggle('rich', !!info.body);
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    const left = Math.max(8, Math.min(innerWidth - tw - 8, r.left + r.width / 2 - tw / 2));
+    const below = r.bottom + 8 + th < innerHeight - 8;
+    tip.style.left = left + 'px';
+    tip.style.top = (below ? r.bottom + 8 : Math.max(8, r.top - 8 - th)) + 'px';
+    clearTimeout(tipHide);
+  }
+  function hideTipSoon(ms) { clearTimeout(tipHide); tipHide = setTimeout(() => { tip.hidden = true; }, ms); }
+  const TIP_SEL = '[data-tip], button[title], button[aria-label]';
+  document.addEventListener('pointerdown', e => {
+    tipFired = false;
+    clearTimeout(tipTimer);
+    if (e.pointerType === 'mouse') return; // en la PC ya está el cartel al pasar el mouse
+    const el = e.target.closest(TIP_SEL);
+    if (!el || el.closest('.item')) return;
+    tipX = e.clientX; tipY = e.clientY;
+    tipTimer = setTimeout(() => { tipFired = true; if (navigator.vibrate) navigator.vibrate(10); showTip(el); }, 450);
+  }, true);
+  document.addEventListener('pointermove', e => { if (Math.hypot(e.clientX - tipX, e.clientY - tipY) > 10) clearTimeout(tipTimer); }, true);
+  const tipEnd = () => { clearTimeout(tipTimer); if (tipFired && !tip.hidden) hideTipSoon(tip.classList.contains('rich') ? 4000 : 1800); };
+  document.addEventListener('pointerup', tipEnd, true);
+  document.addEventListener('pointercancel', tipEnd, true);
+  // El toque largo no ejecuta el botón.
+  document.addEventListener('click', e => { if (tipFired) { tipFired = false; e.preventDefault(); e.stopPropagation(); } }, true);
+  document.addEventListener('contextmenu', e => { if (e.target.closest(TIP_SEL)) e.preventDefault(); }, true);
+  addEventListener('scroll', () => { if (!tip.hidden) tip.hidden = true; }, true);
+
   /* ---------- Diálogos genéricos ---------- */
   function openDialog(dlg, title, content, actions) {
     dlg.replaceChildren(h('div', { class: 'dlg-inner' },
@@ -1512,7 +1571,7 @@
       h('button', { class: 'btn', text: 'Restaurar backup encriptado', onclick: go(importBackup) }),
       driveConfigured() ? [
         h('hr'),
-        driveOn() ? h('p', { class: 'muted small sync-detail', text: syncVisual()[1] + (G.detail ? '. ' + G.detail : '') }) : null,
+        driveOn() ? h('p', { class: 'muted small sync-detail', text: 'Drive: ' + syncVisual()[1] + '. ' + syncVisual()[2] }) : null,
         driveOn()
           ? h('button', { class: 'btn', text: 'Sincronizar con Drive ahora', onclick: go(syncTap) })
           : h('button', { class: 'btn', text: 'Conectar Google Drive', onclick: go(connectDrive) }),
@@ -2284,25 +2343,27 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
     return 'a las ' + new Date(t).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   }
   // Estado visual del botón de sincronización: [clase, texto].
+  // Estado del botón de Drive: [clase, nombre del estado, explicación].
   function syncVisual() {
-    if (!driveOn()) return ['off', 'Drive no está conectado. Tocá para conectarlo'];
-    if (G.state === 'sync') return ['sync', 'Sincronizando…'];
-    if (G.state === 'error') return ['error', 'No se sincronizó. Tocá para reintentar'];
-    if (G.state === 'auth') return ['warn', 'Hay que reconectar Drive. Tocá para conectar'];
-    if (G.state === 'offline') return ['offline', 'Sin conexión, se sincroniza después'];
-    if (G.pending) return ['warn', 'Hay cambios sin subir. Tocá para sincronizar'];
-    if (G.state === 'ok') return ['ok', 'Sincronizado ' + ago(driveMeta && driveMeta.lastSync)];
-    return ['idle', 'Drive conectado. Tocá para sincronizar'];
+    const last = driveMeta && driveMeta.lastSync ? ' Última sincronización: ' + ago(driveMeta.lastSync) + '.' : '';
+    if (!driveOn()) return ['off', 'Sin conectar', 'Las notas quedan solo en este dispositivo. Tocá para conectar Google Drive.'];
+    if (G.state === 'sync') return ['sync', 'Sincronizando', 'Subiendo y bajando cambios con Drive.'];
+    if (G.state === 'error') return ['error', 'Error al sincronizar', (G.detail ? G.detail + '. ' : '') + 'Tocá para reintentar.' + last];
+    if (G.state === 'auth') return ['warn', 'Hay que reconectar', 'Google pide volver a dar permiso cada tanto. Tocá y elegí tu cuenta.' + last];
+    if (G.state === 'offline') return ['offline', 'Sin conexión', 'No hay internet. Se sincroniza solo cuando vuelva.' + last];
+    if (G.pending) return ['warn', 'Cambios sin subir', 'Hay cambios que todavía no están en Drive. Se suben solos en unos segundos, o tocá para subirlos ya.' + last];
+    if (G.state === 'ok') return ['ok', 'Sincronizado', 'Todo al día con Drive.' + last];
+    return ['idle', 'Conectado', 'Todavía no sincronizó desde que abriste la app. Tocá para sincronizar.' + last];
   }
   function renderSync() {
     const el = document.getElementById('sync-btn');
     if (!el) return;
     el.hidden = !driveConfigured();
     if (el.hidden) return;
-    const [st, txt] = syncVisual();
+    const [st, name, why] = syncVisual();
     el.dataset.state = st;
-    el.title = txt + (G.detail && st === 'error' ? '. ' + G.detail : '');
-    el.setAttribute('aria-label', el.title);
+    el.title = 'Drive: ' + name + '. ' + why;
+    el.setAttribute('aria-label', 'Google Drive: ' + name);
   }
   setInterval(() => { if (G.state === 'ok') renderSync(); }, 30000);
 
