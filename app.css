@@ -444,3 +444,15 @@ button, [data-tip] { -webkit-touch-callout: none; -webkit-user-select: none; use
 .tip strong { font-weight: 600; display: block; }
 .tip.rich { padding: 10px 12px; }
 .tip.rich span { display: block; margin-top: 3px; opacity: .85; }
+
+/* 1.5.0: tablas en todas las secciones */
+.prose-ed .tableWrapper { overflow-x: auto; margin: .5em 0 1em; -webkit-overflow-scrolling: touch; }
+.prose-ed table { border-collapse: collapse; table-layout: auto; margin: 0; }
+.prose-ed th, .prose-ed td { border: 1px solid var(--line); padding: .35em .6em; vertical-align: top; min-width: 4.5em; text-align: left; }
+.prose-ed th { background: var(--surface-2); font-weight: 600; }
+.prose-ed th p, .prose-ed td p { margin: 0; }
+.prose-ed .selectedCell { background: var(--accent-soft); }
+.prose-ed .column-resize-handle { display: none; }
+.fmt-bar .tb { display: none; }
+.fmt-bar.in-table .tb { display: inline-flex; }
+.fmt-bar .fb.tb { width: auto; padding: 0 9px; font-size: 13px; white-space: nowrap; }

@@ -26,10 +26,12 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 ## Edición
 
 - Cada nota tiene una pestaña con el texto y una pestaña por sección, para leer y editar a pantalla completa.
-- Las secciones son de una categoría: Transcripción (texto plano) o las que definas en Menú, "Categorías de secciones" (por ejemplo Resumen o Comentarios), que tienen el mismo formato que la nota. "+ Sección" agrega una pestaña de la categoría que elijas.
+- Las secciones son de una categoría: Transcripción o las que definas en Menú, "Categorías de secciones" (por ejemplo Resumen o Comentarios). Todas tienen el mismo formato que la nota. "+ Sección" agrega una pestaña de la categoría que elijas.
+- Las transcripciones que estaban en texto plano se abren con cada renglón tal cual. Se guardan con formato recién cuando las editás; hasta entonces se exportan igual que antes.
+- Tablas en la nota y en cualquier sección: botón de tabla en la barra de formato. Con el cursor dentro de una tabla, la barra muestra "+ Fila", "+ Columna", "− Fila", "− Columna" y "Quitar tabla". Las tablas anchas se deslizan de costado. Son tablas simples (encabezado, filas y columnas, negrita o cursiva en las celdas): no hay celdas combinadas ni listas dentro de una celda.
 - El texto acepta formato: títulos (T1, T2, T3), negrita, cursiva, tachado, viñetas, listas numeradas, tareas, citas y líneas divisorias. Se guarda como Markdown, así que al copiarlo a un chat mantiene la estructura.
 - Atajos al escribir: `# ` título, `## ` subtítulo, `- ` viñeta, `1. ` lista, `[ ] ` tarea, `> ` cita.
-- Se puede crear una nota desde un archivo .docx (respeta títulos, listas, negrita y cursiva; las tablas quedan como filas de texto) o pegar desde Google Docs y Word.
+- Se puede crear una nota desde un archivo .docx (respeta títulos, listas, negrita, cursiva y tablas simples) o pegar desde Google Docs, Word u OneNote. Una tabla con celdas combinadas en vertical o con tablas adentro se pasa a renglones de texto "a | b".
 - Índice de títulos para saltar dentro de notas largas, tamaño de letra ajustable y modo foco que oculta la lista.
 - La barra de formato queda siempre fija arriba. La fila de navegación y las pestañas se esconden al bajar o al abrir el teclado, y vuelven al subir.
 - Escritura centrada (botón Aa): al tocar o escribir, la pantalla se acomoda para que el cursor quede cerca del medio. Viene activada en el celu.

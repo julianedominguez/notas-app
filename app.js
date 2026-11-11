@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.4.1';
+  const APP_VERSION = '1.5.0';
   const LOCK_MS = 5 * 60 * 1000;
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
@@ -24,6 +24,7 @@
     indent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6h9M11 12h9M11 18h9M4 9l3 3-3 3"/></svg>',
     outdent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6h9M11 12h9M11 18h9M7 9l-3 3 3 3"/></svg>',
     quote: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.5 7C6.5 7.6 5 9.7 5 13v4h5v-5H7.6c.2-1.6 1-2.6 2.4-3zM18.5 7c-3 .6-4.5 2.7-4.5 6v4h5v-5h-2.4c.2-1.6 1-2.6 2.4-3z"/></svg>',
+    table: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 10h17M3.5 14.5h17M10 5v14"/></svg>',
     hr: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3.5 12h17"/><path d="M7 6.5h10M7 17.5h10" stroke-width="1.2" opacity=".5"/></svg>',
     undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>',
     redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg>',
@@ -804,7 +805,6 @@
       const r = h('input', { type: 'radio', name: 'size', value: k, checked: PREF.size === k });
       r.addEventListener('change', () => {
         PREF.size = k; savePrefs(); applyPrefs();
-        const ta = $('.tr-text'); if (ta) autosize(ta);
       });
       return h('label', null, r, h('span', { class: 'sz-' + k, text: label }));
     }));
@@ -855,8 +855,11 @@
     return (md || '')
       .replace(/^\s{0,3}(#{1,6}|>|[-*+]\s\[[ xX]\]|[-*+]|\d+[.)])\s+/gm, '')
       .replace(/^\s*([-*_]\s*){3,}$/gm, '')
+      .replace(/^\s*\|?[\s:|-]*-[\s:|-]*$/gm, '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/(^|[^\\])\|/g, '$1 ')
       .replace(/[*_~`]+/g, '')
-      .replace(/\\([\\`*_{}\[\]()#+\-.!>])/g, '$1')
+      .replace(/\\([\\`*_{}\[\]()#+\-.!>|=])/g, '$1')
       .replace(/\s+/g, ' ').trim();
   }
   function wordCount(s) { const m = (s || '').match(/\S+/g); return m ? m.length : 0; }
@@ -871,7 +874,9 @@
     clearTimeout(ED.timer);
     ED.dirty = false;
     const md = ED.editor.getMarkdown();
-    if (md !== ED.target.text) {
+    const conv = ED.target !== ED.note && isPlainT(ED.target);
+    if (conv) ED.target.fmt = 1; // desde ahora esta transcripción se guarda con formato
+    if (md !== ED.target.text || conv) {
       ED.target.text = md; touch(ED.note);
       if (ED.onText) ED.onText(md);
     } else setStatus('Guardado');
@@ -934,7 +939,6 @@
 
   function touch(n) { n.updatedAt = Date.now(); scheduleSave(); renderListSoon(); }
 
-  function autosize(ta) { ta.style.height = 'auto'; ta.style.height = Math.max(ta.scrollHeight, 0) + 'px'; }
 
   function switchTab(n, tab) {
     commitEditor();
@@ -959,8 +963,7 @@
     if (view.tab === 'nota') notePane(n, head, pane);
     else {
       const t = n.transcripts.find(x => x.id === view.tab);
-      if (isPlain(catOf(t))) trPane(n, t, pane);
-      else secPane(n, t, head, pane);
+      secPane(n, t, head, pane);
     }
     measureNav();
   }
@@ -1088,14 +1091,14 @@
     commitEditor();
     const t = { id: uid(), name, text };
     if (cat !== TR) t.cat = cat;
+    else if (!text) t.fmt = 1;
     n.transcripts.push(t);
     if (text) touch(n);
     view.tab = t.id;
     renderEditor();
     $('#editor').scrollTop = 0;
     if (!text) {
-      const ta = $('.tr-text'); if (ta) ta.focus();
-      else if (ED) ED.editor.commands.focus('end');
+      if (ED) ED.editor.commands.focus('end');
     }
     return t;
   }
@@ -1135,9 +1138,19 @@
     const stats = h('span', { class: 'tr-stats', text: catName(catOf(t)) + ' · ' + wordsLabel(t.text) });
     name.addEventListener('input', () => { t.name = name.value; const l = $('.tab.on .tab-l'); if (l) l.textContent = secLabel(n, t); touch(n); });
     const host = h('div', { class: 'prose' });
+    const isTr = catOf(t) === TR;
+    const loadTxt = isTr ? h('button', { class: 'btn small', text: 'Cargar .txt', onclick: async () => {
+      const [f] = await pickFile('.txt,.md,text/plain');
+      if (!f || !ED || ED.target !== t) return;
+      const html = plainToHtml(await f.text());
+      if (ED.editor.isEmpty) ED.editor.commands.setContent(html);
+      else ED.editor.chain().focus('end').insertContent(html).run();
+      if (!t.name) { t.name = f.name.replace(/\.(txt|md)$/i, ''); name.value = t.name; const l = $('.tab.on .tab-l'); if (l) l.textContent = secLabel(n, t); }
+      ED.dirty = true; commitEditor(); toast('Transcripción cargada.');
+    } }) : null;
     pane.append(h('div', { class: 'ed-body' },
       h('div', { class: 'tr-top' }, name,
-        h('div', { class: 'tr-actions' }, stats,
+        h('div', { class: 'tr-actions' }, stats, loadTxt,
           h('button', { class: 'btn small', text: 'Copiar', onclick: async () => { commitEditor(); toast(await copyText(t.text) ? 'Sección copiada.' : 'No se pudo copiar.'); } }),
           h('button', { class: 'btn small danger', text: 'Eliminar', onclick: async () => {
             commitEditor();
@@ -1148,7 +1161,7 @@
         )
       ),
       host));
-    mountEditor(n, t, head, host, 'Escribí acá. Tiene el mismo formato que la nota.', 'Texto de la sección', md => {
+    mountEditor(n, t, head, host, isTr ? 'Pegá acá la transcripción o cargala desde un archivo .txt' : 'Escribí acá. Tiene el mismo formato que la nota.', isTr ? 'Transcripción' : 'Texto de la sección', md => {
       const w = wordsLabel(md);
       stats.textContent = catName(catOf(t)) + ' · ' + w;
       const s = $('.tab.on .tab-s'); if (s) s.textContent = w;
@@ -1159,17 +1172,21 @@
     const fmt = fmtBar();
     head.append(fmt);
     const X = window.NotasEditor;
+    const E = edExtensions();
+    const legacy = target !== n && isPlainT(target);
     const editor = new X.Editor({
       element: host,
       injectCSS: false,
       extensions: [
-        X.StarterKit.configure({ underline: false, link: { openOnClick: false, autolink: true, linkOnPaste: true } }),
+        X.StarterKit.configure({ paragraph: false, underline: false, link: { openOnClick: false, autolink: true, linkOnPaste: true } }),
+        E.Para,
         X.TaskList, X.TaskItem.configure({ nested: true }),
+        E.Table.configure({ resizable: false }), X.TableRow, X.TableHeader, X.TableCell,
         X.Placeholder.configure({ placeholder }),
         X.Markdown
       ],
-      content: target.text || '',
-      contentType: 'markdown',
+      content: legacy ? plainToHtml(target.text) : (target.text || ''),
+      contentType: legacy ? 'html' : 'markdown',
       editorProps: {
         attributes: { class: 'prose-ed', 'aria-label': label, spellcheck: PREF.spell ? 'true' : 'false' },
         transformPastedHTML: cleanPastedHTML,
@@ -1201,12 +1218,48 @@
     updateFmt();
   }
 
+  // Protege símbolos que al principio de un renglón se leerían como formato al volver a abrir la nota
+  // (# título, - o + viñeta, 1. lista, --- línea, filas que parecen tabla).
+  function escLineStarts(s) {
+    return s.split('\n').map(l => l
+      .replace(/^(\s{0,3})(#{1,6})(?=\s|$)/, '$1\\$2')
+      .replace(/^(\s{0,3})([-+])(?=\s)/, '$1\\$2')
+      .replace(/^(\s{0,3}\d{1,9})([.)])(?=\s|$)/, '$1\\$2')
+      .replace(/^(\s{0,3})([-=])(?=[-=\s]*$)/, '$1\\$2')
+      .replace(/^(\s{0,3})([|:-])(?=[\s|:-]*-[\s|:-]*$)/, (m, a, b) => /\|/.test(l) ? a + '\\' + b : m)
+    ).join('\n');
+  }
+  let EXT = null;
+  function edExtensions() {
+    if (EXT) return EXT;
+    const X = window.NotasEditor;
+    EXT = {
+      Para: X.Paragraph.extend({ renderMarkdown: (node, hh, ctx) => escLineStarts(X.Paragraph.config.renderMarkdown(node, hh, ctx) || '') }),
+      // Al copiar, la tabla sale sin estilos en línea (la política de seguridad no los permite).
+      Table: X.Table.extend({ renderHTML({ HTMLAttributes }) { return ['table', HTMLAttributes, ['tbody', 0]]; } })
+    };
+    return EXT;
+  }
+  // Texto plano (transcripciones viejas) a HTML: cada renglón se respeta tal cual.
+  function plainToHtml(t) {
+    const esc = x => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return (t || '').replace(/\r\n?/g, '\n').split(/\n[ \t]*\n/)
+      .filter(b => b.trim())
+      .map(b => '<p>' + b.split('\n').map(esc).join('<br>') + '</p>').join('');
+  }
+  const isPlainT = t => catOf(t) === TR && !t.fmt; // transcripción vieja, todavía en texto plano
+
   let typedAt = 0;
   let fmtRaf = 0;
   function updateFmtSoon() { if (!fmtRaf) fmtRaf = requestAnimationFrame(() => { fmtRaf = 0; updateFmt(); }); }
   function updateFmt() {
     if (!ED) return;
     const e = ED.editor;
+    const inTable = e.isActive('table');
+    if (inTable !== ED.fmt.classList.contains('in-table')) {
+      ED.fmt.classList.toggle('in-table', inTable);
+      if (inTable) ED.fmt.scrollLeft = 0; // que los controles de la tabla queden a la vista
+    }
     for (const b of ED.fmt.querySelectorAll('[data-k]')) {
       const k = b.dataset.k;
       let on = false, dis = false;
@@ -1217,6 +1270,9 @@
       else if (k === 'redo') dis = !e.can().redo();
       else if (k === 'indent') dis = !(e.can().sinkListItem('listItem') || e.can().sinkListItem('taskItem'));
       else if (k === 'outdent') dis = !(e.can().liftListItem('listItem') || e.can().liftListItem('taskItem'));
+      else if (k === 'table') { on = inTable; dis = inTable; }
+      else if (k === 'tRowDel') dis = !inTable || !e.can().deleteRow();
+      else if (k === 'tColDel') dis = !inTable || !e.can().deleteColumn();
       b.classList.toggle('on', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
       b.disabled = dis;
@@ -1235,7 +1291,14 @@
     };
     const sep = () => h('span', { class: 'fsep', 'aria-hidden': 'true' });
     const c = e => e.chain().focus();
+    const T = (k, label, title, fn) => { const b = B(k, label, title, fn); b.classList.add('tb'); return b; };
     return h('div', { class: 'fmt-bar', role: 'toolbar', 'aria-label': 'Formato' },
+      T('tRowAdd', '+ Fila', 'Agregar fila debajo', e => c(e).addRowAfter().run()),
+      T('tColAdd', '+ Columna', 'Agregar columna a la derecha', e => c(e).addColumnAfter().run()),
+      T('tRowDel', '− Fila', 'Quitar esta fila', e => c(e).deleteRow().run()),
+      T('tColDel', '− Columna', 'Quitar esta columna', e => c(e).deleteColumn().run()),
+      T('tDel', 'Quitar tabla', 'Quitar la tabla entera', e => c(e).deleteTable().run()),
+      h('span', { class: 'fsep tb', 'aria-hidden': 'true' }),
       B('p', 'Texto', 'Texto normal', e => c(e).setParagraph().run()),
       B('h1', 'T1', 'Título 1', e => c(e).toggleHeading({ level: 1 }).run()),
       B('h2', 'T2', 'Título 2', e => c(e).toggleHeading({ level: 2 }).run()),
@@ -1253,6 +1316,7 @@
       sep(),
       B('blockquote', '', 'Cita', e => c(e).toggleBlockquote().run(), I.quote),
       B('hr', '', 'Línea divisoria', e => c(e).setHorizontalRule().run(), I.hr),
+      B('table', '', 'Insertar tabla', e => c(e).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), I.table),
       sep(),
       B('undo', '', 'Deshacer', e => c(e).undo().run(), I.undo),
       B('redo', '', 'Rehacer', e => c(e).redo().run(), I.redo),
@@ -1279,45 +1343,6 @@
         if (dom && dom.scrollIntoView) dom.scrollIntoView({ block: 'start', behavior: 'smooth' });
       }
     })))], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
-  }
-
-  /* Pestaña de una transcripción: texto plano, a lo ancho de la columna y sin scroll interno */
-  function trPane(n, t, pane) {
-    const name = h('input', { type: 'text', class: 'tr-name', placeholder: secLabel(n, Object.assign({}, t, { name: '' })), value: t.name, 'aria-label': 'Nombre de la transcripción' });
-    const stats = h('span', { class: 'tr-stats', text: wordsLabel(t.text) });
-    const ta = h('textarea', { class: 'tr-text', placeholder: 'Pegá acá la transcripción o cargala desde un archivo .txt', 'aria-label': 'Transcripción', spellcheck: 'false' });
-    ta.value = t.text || '';
-    const tabLabel = () => $('.tab.on .tab-l');
-    const tabSub = () => $('.tab.on .tab-s');
-    name.addEventListener('input', () => { t.name = name.value; const l = tabLabel(); if (l) l.textContent = secLabel(n, t); touch(n); });
-    const refresh = debounce(() => { const w = wordsLabel(t.text); stats.textContent = w; const s = tabSub(); if (s) s.textContent = w; }, 400);
-    let raf = 0;
-    ta.addEventListener('input', () => {
-      t.text = ta.value; touch(n); refresh();
-      if (!raf) raf = requestAnimationFrame(() => { raf = 0; autosize(ta); });
-    });
-    pane.append(h('div', { class: 'ed-body tr-body' },
-      h('div', { class: 'tr-top' },
-        name,
-        h('div', { class: 'tr-actions' }, stats,
-          h('button', { class: 'btn small', text: 'Cargar .txt', onclick: async () => {
-            const [f] = await pickFile('.txt,.md,text/plain');
-            if (!f) return;
-            const txt = await f.text();
-            t.text = t.text.trim() ? t.text.replace(/\s+$/, '') + '\n\n' + txt : txt;
-            if (!t.name) t.name = f.name.replace(/\.(txt|md)$/i, '');
-            touch(n); renderEditor(); toast('Transcripción cargada.');
-          } }),
-          h('button', { class: 'btn small', text: 'Copiar', onclick: async () => { toast(await copyText(t.text) ? 'Transcripción copiada.' : 'No se pudo copiar.'); } }),
-          h('button', { class: 'btn small danger', text: 'Eliminar', onclick: async () => {
-            if ((t.text || '').trim() && !(await confirmBox('¿Eliminar esta transcripción?', 'Eliminar', true))) return;
-            n.transcripts = n.transcripts.filter(x => x.id !== t.id); touch(n); view.tab = 'nota'; renderEditor();
-          } })
-        )
-      ),
-      ta
-    ));
-    requestAnimationFrame(() => autosize(ta));
   }
 
   async function txtTranscripts(n) {
@@ -1377,18 +1402,90 @@
   }
 
   /* ---------- Pegar desde Word o Docs, e importar .docx ---------- */
+  // Las tablas simples quedan como tablas; las que tienen celdas combinadas en vertical o tablas
+  // dentro de tablas se pasan a renglones "a | b", porque el formato de las notas no las admite.
   function flattenTables(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     doc.querySelectorAll('img, style, script, meta, link, title').forEach(e => e.remove());
     doc.querySelectorAll('[style]').forEach(e => e.removeAttribute('style'));
-    doc.querySelectorAll('table').forEach(tb => {
+    const flat = tb => {
       const frag = doc.createDocumentFragment();
       tb.querySelectorAll('tr').forEach(tr => {
         const cells = [...tr.children].map(c => c.textContent.trim().replace(/\s+/g, ' ')).filter(Boolean);
         if (cells.length) { const p = doc.createElement('p'); p.textContent = cells.join(' | '); frag.append(p); }
       });
       tb.replaceWith(frag);
-    });
+    };
+    // De adentro hacia afuera: una tabla dentro de otra se aplana.
+    for (const tb of [...doc.querySelectorAll('table')].reverse()) {
+      if (!tb.isConnected) continue;
+      const rows = [...tb.querySelectorAll('tr')].filter(tr => tr.closest('table') === tb);
+      if (!rows.length) { tb.remove(); continue; }
+      if (tb.parentElement && tb.parentElement.closest('table') || rows.some(tr => [...tr.children].some(c => Number(c.getAttribute('rowspan') || 1) > 1))) { flat(tb); continue; }
+      const grid = rows.map(tr => {
+        const out = [];
+        for (const c of [...tr.children].filter(c => /^T[DH]$/.test(c.tagName))) {
+          // Dentro de una celda: solo texto con negrita, cursiva, tachado, código y enlaces; cada párrafo o ítem, en su renglón.
+          const parts = [];
+          const walk = (node, into) => {
+            for (const ch of [...node.childNodes]) {
+              if (ch.nodeType === 3) { into.push(ch.textContent.replace(/\s+/g, ' ')); continue; }
+              if (ch.nodeType !== 1) continue;
+              const tag = ch.tagName;
+              if (tag === 'BR') { into.push('\n'); continue; }
+              if (/^(B|STRONG|I|EM|S|DEL|STRIKE|CODE|A)$/.test(tag)) {
+                const inner = []; walk(ch, inner);
+                const t = inner.join('');
+                if (!t.trim()) { into.push(t); continue; }
+                const el = doc.createElement(tag === 'B' ? 'strong' : tag === 'I' ? 'em' : /^(DEL|STRIKE)$/.test(tag) ? 's' : tag.toLowerCase());
+                if (tag === 'A' && ch.getAttribute('href')) el.setAttribute('href', ch.getAttribute('href'));
+                into.push({ el, t });
+                continue;
+              }
+              const block = /^(P|DIV|LI|H[1-6]|TR|UL|OL|BLOCKQUOTE|PRE)$/.test(tag);
+              if (block) into.push('\n');
+              walk(ch, into);
+              if (block) into.push('\n');
+            }
+          };
+          walk(c, parts);
+          const cell = doc.createElement(c.tagName === 'TH' ? 'th' : 'td');
+          const lines = [[]];
+          for (const x of parts) {
+            if (typeof x === 'string') x.split('\n').forEach((seg, i) => { if (i) lines.push([]); if (seg) lines[lines.length - 1].push(seg); });
+            else lines[lines.length - 1].push(x);
+          }
+          const used = lines.filter(l => l.some(x => typeof x === 'string' ? x.trim() : x.t.trim()));
+          used.forEach((l, i) => {
+            if (i) cell.append(doc.createElement('br'));
+            l.forEach((x, j) => {
+              if (typeof x === 'string') cell.append(j === 0 ? x.replace(/^\s+/, '') : x);
+              else { x.el.textContent = x.t; cell.append(x.el); }
+            });
+          });
+          out.push(cell);
+          for (let k = 1; k < Number(c.getAttribute('colspan') || 1); k++) out.push(doc.createElement(c.tagName === 'TH' ? 'th' : 'td'));
+        }
+        return out;
+      }).filter(r => r.length);
+      if (!grid.length) { tb.remove(); continue; }
+      const cols = Math.max(...grid.map(r => r.length));
+      const table = doc.createElement('table');
+      const body = doc.createElement('tbody');
+      table.append(body);
+      grid.forEach((r, i) => {
+        while (r.length < cols) r.push(doc.createElement('td'));
+        const tr = doc.createElement('tr');
+        r.forEach(c => {
+          // La primera fila es el encabezado (así lo pide el formato de tablas de las notas); las demás, celdas comunes.
+          const want = i === 0 ? 'th' : 'td';
+          if (c.tagName.toLowerCase() !== want) { const nc = doc.createElement(want); nc.append(...c.childNodes); c = nc; }
+          tr.append(c);
+        });
+        body.append(tr);
+      });
+      tb.replaceWith(table);
+    }
     return doc.body.innerHTML;
   }
   // Word pega las viñetas como párrafos sueltos con el símbolo adelante; acá se rearman como lista.
@@ -1601,7 +1698,7 @@
       if (!inc.cats.has(cat)) continue;
       const tx = (t.text || '').trim();
       if (!tx) continue;
-      out += `\n## ${catName(cat)}${t.name ? ': ' + t.name : ''}\n\n${isPlain(cat) ? tx : bump(tx, 2)}\n`;
+      out += `\n## ${catName(cat)}${t.name ? ': ' + t.name : ''}\n\n${isPlainT(t) ? tx : bump(tx, 2)}\n`;
     }
     return out;
   }
