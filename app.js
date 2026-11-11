@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.5.0';
+  const APP_VERSION = '1.6.0';
   const LOCK_MS = 5 * 60 * 1000;
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
@@ -786,7 +786,19 @@
   /* ---------- Preferencias de lectura (solo en este dispositivo) ---------- */
   const PREF = { size: 'm', focus: false };
   try { Object.assign(PREF, JSON.parse(localStorage.getItem('notas-app-prefs') || '{}')); } catch { /* sin preferencias guardadas */ }
-  const SIZES = [['s', 'Letra chica'], ['m', 'Letra normal'], ['l', 'Letra grande'], ['xl', 'Letra muy grande']];
+  const SIZES = [['s', 'Chica'], ['m', 'Normal'], ['l', 'Grande'], ['xl', 'Muy grande']];
+  // Tipografías: las de "fonts/" vienen con la app (licencia libre OFL) y solo se descargan si se usan.
+  const FONTS = [
+    ['clasica', 'Clásica', 'La de siempre. Depende de las letras que tenga cada dispositivo.'],
+    ['sistema', 'Sistema', 'La letra de tu celu o tu compu. Sin serifa.'],
+    ['literata', 'Literata', 'Con serifa, hecha para leer mucho en pantalla.'],
+    ['source-serif', 'Source Serif', 'Con serifa, sobria y clara.'],
+    ['lora', 'Lora', 'Con serifa, de trazo más cálido.'],
+    ['inter', 'Inter', 'Sin serifa, moderna y muy nítida.'],
+    ['atkinson', 'Atkinson Hyperlegible', 'Sin serifa, pensada para leer sin esfuerzo.'],
+    ['nunito', 'Nunito', 'Sin serifa, de formas redondeadas.']
+  ];
+  if (!FONTS.some(f => f[0] === PREF.font)) PREF.font = 'clasica';
   function savePrefs() { try { localStorage.setItem('notas-app-prefs', JSON.stringify(PREF)); } catch { /* sin almacenamiento */ } }
   // Escritura centrada: activada de entrada en el celu, apagada en la PC.
   if (typeof PREF.center !== 'boolean') { PREF.center = narrow(); savePrefs(); }
@@ -795,17 +807,23 @@
   if (typeof PREF.spell !== 'boolean') { PREF.spell = !narrow(); savePrefs(); }
   function applyPrefs() {
     document.documentElement.dataset.size = PREF.size;
+    document.documentElement.dataset.font = PREF.font;
     document.body.classList.toggle('focus-mode', !!PREF.focus);
     document.body.classList.toggle('center-on', !!PREF.center);
   }
   applyPrefs();
   function readingDialog() {
     const d = $('#dlg2');
-    const radios = h('div', { class: 'radio-list' }, SIZES.map(([k, label]) => {
+    const fonts = h('div', { class: 'radio-list font-list' }, FONTS.map(([k, label, desc]) => {
+      const r = h('input', { type: 'radio', name: 'font', value: k, checked: PREF.font === k });
+      r.addEventListener('change', () => { PREF.font = k; savePrefs(); applyPrefs(); });
+      return h('label', null, r, h('span', null,
+        h('span', { class: 'ff-sample ff-' + k, text: label }),
+        h('span', { class: 'muted small block', text: desc })));
+    }));
+    const sizes = h('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Tamaño de letra' }, SIZES.map(([k, label]) => {
       const r = h('input', { type: 'radio', name: 'size', value: k, checked: PREF.size === k });
-      r.addEventListener('change', () => {
-        PREF.size = k; savePrefs(); applyPrefs();
-      });
+      r.addEventListener('change', () => { PREF.size = k; savePrefs(); applyPrefs(); });
       return h('label', null, r, h('span', { class: 'sz-' + k, text: label }));
     }));
     const cb = h('input', { type: 'checkbox', checked: !!PREF.center });
@@ -815,14 +833,19 @@
       PREF.spell = sp.checked; savePrefs();
       document.querySelectorAll('.prose-ed').forEach(el => el.setAttribute('spellcheck', PREF.spell ? 'true' : 'false'));
     });
-    openDialog(d, 'Lectura y escritura', [
-      radios,
+    openDialog(d, 'Apariencia y escritura', [
+      h('div', { class: 'menu-h', text: 'Tipografía' }),
+      fonts,
+      h('div', { class: 'menu-h', text: 'Tamaño de letra' }),
+      sizes,
+      h('div', { class: 'menu-h', text: 'Escritura' }),
       h('label', { class: 'check' }, cb, h('span', null,
         h('span', { text: 'Escritura centrada' }),
         h('span', { class: 'muted small block', text: 'Al tocar o escribir, la pantalla se acomoda para que el cursor quede cerca del medio y no abajo de todo.' }))),
       h('label', { class: 'check' }, sp, h('span', null,
         h('span', { text: 'Subrayar errores de ortografía' }),
-        h('span', { class: 'muted small block', text: 'En el celu conviene apagado: si está prendido, tocar una palabra subrayada abre las sugerencias y cierra el teclado. El teclado igual sigue corrigiendo.' })))
+        h('span', { class: 'muted small block', text: 'En el celu conviene apagado: si está prendido, tocar una palabra subrayada abre las sugerencias y cierra el teclado. El teclado igual sigue corrigiendo.' }))),
+      h('p', { class: 'muted small', text: 'Estas opciones se guardan en este dispositivo.' })
     ], [h('button', { class: 'btn', text: 'Listo', onclick: () => d.close() })]);
   }
   function toggleFocus() {
@@ -1056,7 +1079,7 @@
       h('button', { class: 'btn ghost icon only-narrow', 'aria-label': 'Volver', html: I.back, onclick: goBack }),
       h('button', { class: 'btn ghost icon only-wide', id: 'focus-btn', title: PREF.focus ? 'Mostrar la lista de notas' : 'Modo foco: ocultar la lista de notas', 'aria-label': 'Modo foco', html: I.focus, onclick: toggleFocus }),
       h('span', { class: 'status', id: 'ed-status', text: 'Guardado' }),
-      h('button', { class: 'btn ghost icon', title: 'Letra y escritura centrada', 'aria-label': 'Letra y escritura centrada', html: '<span class="aa">Aa</span>', onclick: readingDialog }),
+      h('button', { class: 'btn ghost icon', title: 'Apariencia y escritura', 'aria-label': 'Apariencia y escritura', html: '<span class="aa">Aa</span>', onclick: readingDialog }),
       h('button', { class: 'btn ghost', title: 'Copiar esta nota como texto', onclick: () => exportDialog(n.id), html: I.copy + '<span class="label">Copiar para chat</span>' }),
       h('button', { class: 'btn ghost icon', title: 'Más opciones', 'aria-label': 'Más opciones de la nota', html: I.menu, onclick: () => noteMenu(n) })
     );
@@ -1656,31 +1679,33 @@
     const d = $('#dlg');
     if (driveConfigured()) loadGis().catch(() => {});
     const go = fn => () => { d.close(); fn(); };
+    const Hd = t => h('div', { class: 'menu-h', text: t });
+    const B = (text, fn, cls) => h('button', { class: 'btn' + (cls ? ' ' + cls : ''), text, onclick: go(fn) });
+    const drive = driveConfigured() ? [
+      driveOn() ? h('p', { class: 'muted small sync-detail', text: 'Drive: ' + syncVisual()[1] + '. ' + syncVisual()[2] }) : null,
+      driveOn() ? B('Sincronizar con Drive ahora', syncTap) : B('Conectar Google Drive', connectDrive),
+      driveOn() ? B('Desconectar Google Drive', disconnectDrive) : null
+    ] : [];
     openDialog(d, 'Menú', [h('div', { class: 'menu' },
-      h('button', { class: 'btn', html: I.lock + '<span>' + (S.multi ? 'Bloquear ahora o cambiar de sesión' : 'Bloquear ahora') + '</span>', onclick: go(lock) }),
-      h('hr'),
-      h('button', { class: 'btn', text: 'Copiar o descargar notas como texto', onclick: go(() => exportDialog(null)) }),
-      h('button', { class: 'btn', text: 'Importar notas desde texto', onclick: go(importDialog) }),
-      h('button', { class: 'btn', text: 'Nueva nota desde un archivo .docx', onclick: go(newNoteFromDocx) }),
-      h('button', { class: 'btn', text: 'Categorías de secciones', onclick: go(catsDialog) }),
-      h('hr'),
-      h('button', { class: 'btn', text: 'Descargar backup encriptado', onclick: go(exportBackup) }),
-      h('button', { class: 'btn', text: 'Restaurar backup encriptado', onclick: go(importBackup) }),
-      driveConfigured() ? [
-        h('hr'),
-        driveOn() ? h('p', { class: 'muted small sync-detail', text: 'Drive: ' + syncVisual()[1] + '. ' + syncVisual()[2] }) : null,
-        driveOn()
-          ? h('button', { class: 'btn', text: 'Sincronizar con Drive ahora', onclick: go(syncTap) })
-          : h('button', { class: 'btn', text: 'Conectar Google Drive', onclick: go(connectDrive) }),
-        driveOn() ? h('button', { class: 'btn', text: 'Desconectar Google Drive', onclick: go(disconnectDrive) }) : null
-      ] : null,
-      h('hr'),
-      h('button', { class: 'btn', text: 'Cambiar contraseña', onclick: go(changePasswordDialog) }),
-      h('button', { class: 'btn', text: 'Crear otra sesión', onclick: go(newSessionDialog) }),
-      h('hr'),
-      S.multi ? h('button', { class: 'btn danger', text: 'Eliminar esta sesión de este dispositivo', onclick: go(deleteSessionDialog) }) : null,
-      h('button', { class: 'btn danger', text: S.multi ? 'Borrar todas las sesiones de este dispositivo' : 'Borrar todo de este dispositivo', onclick: go(wipeDialog) }),
-      h('p', { class: 'muted small', text: `notas-app ${APP_VERSION} · sesión ${S.data.profile.name} · ${liveNotes().length} notas · se bloquea tras 5 minutos sin uso` })
+      h('button', { class: 'btn menu-top', html: I.lock + '<span>' + (S.multi ? 'Bloquear ahora o cambiar de sesión' : 'Bloquear ahora') + '</span>', onclick: go(lock) }),
+      Hd('Notas'),
+      B('Copiar o descargar notas como texto', () => exportDialog(null)),
+      B('Nueva nota desde un archivo .docx', newNoteFromDocx),
+      B('Importar notas desde texto', importDialog),
+      B('Categorías de secciones', catsDialog),
+      Hd('Apariencia'),
+      B('Tipografía, tamaño de letra y escritura', readingDialog),
+      Hd('Sincronización y respaldo'),
+      ...drive,
+      B('Descargar backup encriptado', exportBackup),
+      B('Restaurar backup encriptado', importBackup),
+      Hd('Seguridad y sesiones'),
+      B('Cambiar contraseña', changePasswordDialog),
+      B('Crear otra sesión', newSessionDialog),
+      Hd('Borrar'),
+      S.multi ? B('Eliminar esta sesión de este dispositivo', deleteSessionDialog, 'danger') : null,
+      B(S.multi ? 'Borrar todas las sesiones de este dispositivo' : 'Borrar todo de este dispositivo', wipeDialog, 'danger'),
+      h('p', { class: 'muted small menu-foot', text: `notas-app ${APP_VERSION} · sesión ${S.data.profile.name} · ${liveNotes().length} notas · se bloquea tras 5 minutos sin uso` })
     )], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
   }
 

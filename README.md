@@ -50,6 +50,12 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 - El subrayado de errores de ortografía viene apagado en el celu (botón Aa), porque en Android tocar una palabra subrayada abre las sugerencias y cierra el teclado.
 - Las notas que quedan completamente vacías se borran solas al salir de ellas, igual que las secciones vacías.
 
+
+## Apariencia
+
+- Menú, "Tipografía, tamaño de letra y escritura" (o el botón Aa dentro de una nota). Hay ocho letras para elegir, cada una con su vista previa: Clásica, Sistema, Literata, Source Serif, Lora, Inter, Atkinson Hyperlegible y Nunito.
+- Las seis últimas vienen con la app en `fonts/` (licencia libre SIL OFL 1.1, ver `fonts/LICENSE-*.txt`). Solo se descarga la que elijas, una vez, y queda guardada para usarla sin conexión.
+- La letra, el tamaño, la escritura centrada y el corrector se guardan en cada dispositivo.
 ## Copiar o descargar como texto
 
 - Desde una nota o desde el Menú. Se puede elegir una nota, varias marcándolas en una lista con buscador, todas, las de la búsqueda actual, un año o un rango de fechas.
