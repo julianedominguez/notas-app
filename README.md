@@ -18,14 +18,24 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 
 ## Sesiones
 
-- Un mismo dispositivo puede tener varias sesiones, cada una con sus notas, su contraseña y su conexión a Drive (otra cuenta de Google o la misma con otro archivo).
-- Se crean desde Menú, "Crear otra sesión". En la pantalla de bloqueo hay un solo campo: la contraseña que pongas decide qué sesión se abre, y no se muestra cuántas hay.
+- Un mismo dispositivo puede tener varias sesiones (cuentas), cada una con sus notas, su contraseña y su conexión a Drive (otra cuenta de Google o la misma con otro archivo).
+- Se crean desde Menú, "Crear otra sesión". Al abrir la app, si hay más de una, primero se elige la cuenta y después se entra con su contraseña o con la huella. Si hay una sola, va directo a la contraseña.
+- Los nombres de las sesiones quedan a la vista en la pantalla de inicio de ese dispositivo (las notas siguen encriptadas). Las sesiones creadas con versiones anteriores aparecen como "Otra sesión" hasta que se entra una vez.
 - Cada sesión queda atada a la cuenta de Google con la que conectó Drive. Si al renovar el acceso se elige otra cuenta, la app lo rechaza.
 - Para usar una sesión en otro dispositivo, se crea allá con el mismo nombre y se conecta Drive: encuentra su archivo (`notas-app-<nombre>.txt`) y pide su contraseña. La primera sesión usa `notas-app-vault.txt`, como antes.
+
+## Huella
+
+- Después de entrar con la contraseña, la app ofrece activar la huella para esa cuenta en ese dispositivo (también desde Menú, "Seguridad y sesiones"). Si se elige "Ahora no", no vuelve a preguntar.
+- Usa una llave de acceso del teléfono (WebAuthn con la extensión PRF): al apoyar el dedo, el teléfono entrega un secreto que desencripta una copia de la clave de la bóveda guardada solo en ese dispositivo. Sin la huella esa copia no sirve, y nunca se guarda la contraseña.
+- La contraseña sigue siendo la llave principal. Si se cambia (acá, en otro dispositivo o al unir con Drive), la huella se desactiva y se ofrece activarla de nuevo.
+- Funciona en Chrome para Android y en iPhone con iOS 18 o posterior; en la PC, con Windows Hello o Touch ID. Si el dispositivo no lo permite, el botón no aparece.
+- La llave queda en el administrador de contraseñas del teléfono con el nombre "notas-app · <sesión>".
 
 ## Edición
 
 - Cada nota tiene una pestaña con el texto y una pestaña por sección, para leer y editar a pantalla completa.
+- Para cambiar el orden de las secciones: toque largo en una pestaña y arrastrarla (con mouse, arrastrar directo). "Nota" queda siempre primera. El orden se guarda en la nota y es el que se usa al copiar o descargar.
 - Las secciones son de una categoría: Transcripción o las que definas en Menú, "Categorías de secciones" (por ejemplo Resumen o Comentarios). Todas tienen el mismo formato que la nota. "+ Sección" agrega una pestaña de la categoría que elijas.
 - Las transcripciones que estaban en texto plano se abren con cada renglón tal cual. Se guardan con formato recién cuando las editás; hasta entonces se exportan igual que antes.
 - Tablas en la nota y en cualquier sección: botón de tabla en la barra de formato. Con el cursor dentro de una tabla, la barra muestra "+ Fila", "+ Columna", "− Fila", "− Columna" y "Quitar tabla". Las tablas anchas se deslizan de costado. Son tablas simples (encabezado, filas y columnas, negrita o cursiva en las celdas): no hay celdas combinadas ni listas dentro de una celda.

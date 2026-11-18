@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.6.0';
+  const APP_VERSION = '1.7.0';
   const LOCK_MS = 5 * 60 * 1000;
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
@@ -33,6 +33,8 @@
     cloud: '<svg class="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7.2 18.5h9.9a3.9 3.9 0 0 0 .5-7.77A5.6 5.6 0 0 0 6.9 9.8a4.35 4.35 0 0 0 .3 8.7z"/></svg>',
     spin: '<svg class="i-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 0 1-13.1 5"/><path d="M4.5 12a7.5 7.5 0 0 1 13.1-5"/><path d="M17.8 3.6v3.6h-3.6M6.2 20.4v-3.6h3.6"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>',
+    finger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 5.4A8.5 8.5 0 0 1 20.5 11v1.5"/><path d="M3.5 9.5a8.6 8.6 0 0 1 1.2-2.4"/><path d="M3.6 13.5c.6-1.2.9-2.4.9-3.5"/><path d="M8 20.2c1.4-2.4 2-5 2-7.7a2 2 0 0 1 4 0c0 .8 0 1.6-.1 2.4"/><path d="M12 12.5c0 3.4-.9 6.6-2.6 9"/><path d="M7.4 9.4A4.5 4.5 0 0 1 16.5 12.5c0 2.6-.4 5.1-1.2 7.4"/><path d="M5.5 17.5c.6-1.6 1-3.3 1-5"/><path d="M19.8 16a24 24 0 0 0 .6-3.5"/><path d="M13.2 21.5c.4-1 .7-2 1-3"/></svg>',
+    chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
     note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h5M9 12h7M9 15.5h7"/></svg>'
   };
 
@@ -253,7 +255,7 @@
   });
   addEventListener('pagehide', () => { flush(); });
 
-  async function lock() {
+  async function lock(pickSid) {
     if (!S) return;
     const cur = ui.current;
     destroyEditor();
@@ -273,11 +275,210 @@
     $('#editor').replaceChildren();
     $('#app').hidden = true;
     document.body.classList.remove('show-editor');
-    showLock();
+    showLock(typeof pickSid === 'string' ? pickSid : undefined);
   }
 
-  /* ---------- Pantalla de bloqueo ---------- */
-  async function showLock() {
+  /* ---------- Huella: WebAuthn con la extensión PRF ---------- */
+  // El teléfono verifica la huella y devuelve un secreto propio de esa llave (PRF). Con ese secreto se encripta
+  // una copia de la clave de la bóveda, guardada solo en este dispositivo ('bio:<sesión>'). Sin la huella esa
+  // copia no sirve. La contraseña sigue siendo la llave maestra: si la copia queda vieja, se borra y se entra con contraseña.
+  const bioKey = sid => 'bio:' + sid;
+  class BioErr extends Error { constructor(code) { super(code); this.code = code; } }
+  let bioAvail = null;
+  async function bioAvailable() {
+    if (bioAvail !== null) return bioAvail;
+    bioAvail = false;
+    try {
+      if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.create) return false;
+      if (PublicKeyCredential.getClientCapabilities) {
+        const c = await PublicKeyCredential.getClientCapabilities().catch(() => null);
+        if (c && c['extension:prf'] === false) return false;
+      }
+      bioAvail = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    } catch { bioAvail = false; }
+    return bioAvail;
+  }
+  // Los mismos 256 bits que deriveKey, pero a mano, para poder guardar la copia encriptada con la huella.
+  async function rawKey(pass, salt, iter) {
+    const base = await crypto.subtle.importKey('raw', te.encode(pass), 'PBKDF2', false, ['deriveBits']);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, base, 256));
+  }
+  function keyFromRaw(raw) { return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']); }
+  async function prfWrapKey(out, ps) {
+    const base = await crypto.subtle.importKey('raw', out, 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: ps, info: te.encode('notas-app huella v1') },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  const rnd = n => crypto.getRandomValues(new Uint8Array(n));
+  async function bioAssert(credId, ps) {
+    const a = await navigator.credentials.get({ publicKey: {
+      challenge: rnd(32), rpId: location.hostname, timeout: 60000, userVerification: 'required',
+      allowCredentials: [{ type: 'public-key', id: credId }],
+      extensions: { prf: { eval: { first: ps } } }
+    } });
+    const r = a && a.getClientExtensionResults().prf;
+    if (!r || !r.results || !r.results.first) throw new BioErr('noprf');
+    return r.results.first;
+  }
+  function bioForget(bio) {
+    // Le avisa al administrador de llaves del teléfono que esta ya no se usa (si el navegador lo permite).
+    try {
+      if (bio && bio.cred && PublicKeyCredential.signalUnknownCredential) {
+        PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: bio.cred.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') }).catch(() => {});
+      }
+    } catch { /* sin soporte */ }
+  }
+  async function bioRemove(sid) {
+    const bio = await DB.get(bioKey(sid)).catch(() => null);
+    if (bio) { bioForget(bio); await DB.del(bioKey(sid)).catch(() => {}); }
+    if (S && S.sid === sid) S.bioOn = false;
+  }
+  // Crea la llave en el teléfono (pide la huella) y guarda la copia encriptada de la clave.
+  // raw puede ser una promesa: así la ventana de la huella se abre enseguida, dentro del toque.
+  async function bioEnroll(sid, name, raw, vaultSalt, iter) {
+    const ps = rnd(32);
+    const cred = await navigator.credentials.create({ publicKey: {
+      rp: { name: 'notas-app', id: location.hostname },
+      user: { id: rnd(16), name: `notas-app · ${name}`, displayName: `notas-app · ${name}` },
+      challenge: rnd(32), timeout: 120000, attestation: 'none',
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+      extensions: { prf: { eval: { first: ps } } }
+    } });
+    const prf = cred.getClientExtensionResults().prf;
+    const credB64 = b64(cred.rawId);
+    if (!prf || prf.enabled === false) { bioForget({ cred: credB64 }); throw new BioErr('noprf'); }
+    let out = prf.results && prf.results.first;
+    if (!out) {
+      // Algunos teléfonos solo dan el secreto al usar la llave: se pide la huella una vez más.
+      try { out = await bioAssert(cred.rawId, ps); }
+      catch (e) {
+        if (e instanceof BioErr) { bioForget({ cred: credB64 }); throw e; }
+        if (!(await confirmBox('Falta un paso: confirmá la huella una vez más para terminar de activarla.', 'Confirmar'))) { bioForget({ cred: credB64 }); throw new BioErr('cancel'); }
+        out = await bioAssert(cred.rawId, ps);
+      }
+    }
+    const bytes = await raw;
+    const iv = rnd(12);
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await prfWrapKey(out, ps), bytes);
+    bytes.fill(0);
+    const old = await DB.get(bioKey(sid)).catch(() => null);
+    if (old) bioForget(old);
+    await DB.put(bioKey(sid), { v: 1, cred: credB64, ps: b64(ps), iv: b64(iv), ct: b64(ct), salt: b64(vaultSalt), iter });
+  }
+  // Abre una sesión con la huella. Si la contraseña cambió desde que se activó, borra la copia vieja.
+  async function bioOpen(sid) {
+    const bio = await DB.get(bioKey(sid));
+    const rec = await DB.get(vaultKey(sid));
+    if (!bio || !rec) throw new BioErr('none');
+    if (bio.salt !== rec.salt || bio.iter !== rec.iter) { await bioRemove(sid); throw new BioErr('stale'); }
+    const ps = unb64(bio.ps);
+    const out = await bioAssert(unb64(bio.cred), ps);
+    let raw;
+    try { raw = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(bio.iv) }, await prfWrapKey(out, ps), unb64(bio.ct))); }
+    catch { throw new BioErr('bad'); }
+    const key = await keyFromRaw(raw);
+    raw.fill(0);
+    let data;
+    try { data = await unseal(key, rec); } catch { await bioRemove(sid); throw new BioErr('stale'); }
+    return { sid, key, salt: unb64(rec.salt), iter: rec.iter, data };
+  }
+  function bioMsg(e) {
+    const c = e && (e.code || e.name);
+    if (c === 'stale') return 'La contraseña cambió desde que activaste la huella. Entrá con la contraseña y volvé a activarla.';
+    if (c === 'noprf') return 'Este teléfono o navegador no permite usar la huella para encriptar. Seguí entrando con la contraseña.';
+    if (c === 'bad') return 'La huella no corresponde a esta cuenta. Entrá con la contraseña.';
+    if (c === 'NotAllowedError' || c === 'AbortError' || c === 'cancel') return 'No se verificó la huella.';
+    if (c === 'InvalidStateError') return 'Ya hay una llave de notas-app en este teléfono para esta cuenta. Probá de nuevo.';
+    return 'No se pudo usar la huella: ' + ((e && e.message) || e);
+  }
+  const bioDeclined = sid => { try { return localStorage.getItem('notas-app-bio-no:' + sid) === '1'; } catch { return false; } };
+  const setBioDeclined = (sid, v) => { try { if (v) localStorage.setItem('notas-app-bio-no:' + sid, '1'); else localStorage.removeItem('notas-app-bio-no:' + sid); } catch { /* sin almacenamiento */ } };
+  // Ofrece activar la huella. raw: promesa con la clave derivada de la contraseña recién ingresada.
+  function offerBio(raw, why) {
+    if (!S) return;
+    const d = $('#dlg');
+    const sid = S.sid, name = S.data.profile.name, salt = S.salt, iter = S.iter;
+    const msg = h('p', { class: 'small', text: '' });
+    const ok = h('button', { class: 'btn primary', text: 'Activar huella' });
+    const later = h('button', { class: 'btn', text: 'Ahora no', onclick: () => { setBioDeclined(sid, true); d.close(); } });
+    ok.addEventListener('click', async () => {
+      ok.disabled = true; later.disabled = true; ok.textContent = 'Esperando la huella…'; msg.textContent = '';
+      try {
+        await bioEnroll(sid, name, raw, salt, iter);
+        setBioDeclined(sid, false);
+        if (S && S.sid === sid) S.bioOn = true;
+        d.close();
+        toast('Huella activada. La próxima vez podés entrar con la huella o con la contraseña.', 5000);
+      } catch (e) {
+        console.error(e);
+        msg.textContent = bioMsg(e);
+        ok.disabled = false; later.disabled = false; ok.textContent = 'Probar de nuevo';
+        if (e && e.code === 'noprf') { ok.hidden = true; later.textContent = 'Cerrar'; }
+      }
+    });
+    openDialog(d, '¿Entrar con huella?', [
+      h('div', { class: 'bio-hero', html: I.finger }),
+      h('p', { text: why || `La próxima vez que abras "${name}" en este dispositivo vas a poder entrar con la huella, además de con la contraseña.` }),
+      h('p', { class: 'muted small', text: 'La contraseña sigue siendo la llave principal: si cambiás de teléfono o la cambiás, se entra con ella y se vuelve a activar. Lo podés desactivar en Menú, "Seguridad y sesiones".' }),
+      msg
+    ], [later, ok]);
+  }
+  async function bioFromMenu() {
+    if (S.bioOn) {
+      if (!(await confirmBox('¿Desactivar el ingreso con huella en este dispositivo? Vas a entrar solo con la contraseña.', 'Desactivar'))) return;
+      await bioRemove(S.sid);
+      toast('Huella desactivada en este dispositivo.');
+      return;
+    }
+    const pass = await askPassword('Activar huella', `Ingresá la contraseña de "${S.data.profile.name}" para activar el ingreso con huella en este dispositivo.`);
+    if (!pass || !S) return;
+    toast('Comprobando…', 1500);
+    try {
+      const raw = await rawKey(pass, S.salt, S.iter);
+      await unseal(await keyFromRaw(raw), await DB.get(vaultKey(S.sid)));
+      offerBio(Promise.resolve(raw), `Tocá "Activar huella" y apoyá el dedo cuando el teléfono lo pida.`);
+    } catch { toast('Contraseña incorrecta.'); }
+  }
+
+  /* ---------- Pantalla de inicio: elegir cuenta y entrar con contraseña o huella ---------- */
+  const sessLabel = x => x.name || (x.id === MAIN ? 'Principal' : 'Otra sesión');
+  async function openOne(sid, pass) {
+    const rec = await DB.get(vaultKey(sid));
+    if (!rec) throw new Error('vacía');
+    const salt = unb64(rec.salt);
+    const key = await deriveKey(pass, salt, rec.iter);
+    const data = await unseal(key, rec);
+    return { sid, key, salt, iter: rec.iter, data };
+  }
+  async function enterSession(got, pass) {
+    S = got;
+    normalizeData(S.data, S.sid);
+    // El índice guarda el nombre de cada sesión para mostrarlo al elegir la cuenta.
+    let list = await listSessions();
+    const fh = await sha(S.data.profile.driveFile);
+    if (!list.some(x => x.id === S.sid)) list.push({ id: S.sid, fh });
+    list = list.map(x => x.id === S.sid ? Object.assign({}, x, { name: S.data.profile.name, fh: x.fh || fh }) : x);
+    await saveSessions(list);
+    try { localStorage.setItem('notas-app-last', S.sid); } catch { /* sin almacenamiento */ }
+    driveMeta = (await DB.get(driveKey(S.sid)).catch(() => null)) || null;
+    S.multi = list.length > 1;
+    // La copia de la huella queda vieja si la contraseña cambió (en otro dispositivo, por ejemplo).
+    let bio = await DB.get(bioKey(S.sid)).catch(() => null);
+    let stale = false;
+    if (bio && (bio.salt !== b64(S.salt) || bio.iter !== S.iter)) { await bioRemove(S.sid); bio = null; stale = true; }
+    S.bioOn = !!bio;
+    S.bioOk = await bioAvailable();
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    startApp();
+    if (pass && S.bioOk && !S.bioOn && (stale || !bioDeclined(S.sid))) {
+      const raw = rawKey(pass, S.salt, S.iter);
+      raw.catch(() => {});
+      offerBio(raw, stale ? 'La contraseña cambió desde que activaste la huella. ¿La volvés a activar?' : null);
+    }
+  }
+
+  async function showLock(pickSid) {
     const root = $('#lock');
     root.hidden = false;
     const sessions = await listSessions();
@@ -295,14 +496,14 @@
           if (p1.value !== p2.value) { msg.textContent = 'Las contraseñas no coinciden.'; return; }
           btn.disabled = true; btn.textContent = 'Preparando…'; msg.textContent = '';
           try {
+            const pass = p1.value;
             const salt = crypto.getRandomValues(new Uint8Array(16));
-            const key = await deriveKey(p1.value, salt, KDF_ITER);
+            const key = await deriveKey(pass, salt, KDF_ITER);
             S = { sid: MAIN, key, salt, iter: KDF_ITER, data: { v: 1, notes: [], cats: [], profile: { name: 'Principal', driveFile: driveFileFor('') } } };
             p1.value = p2.value = '';
             await queueSave();
-            await saveSessions([{ id: MAIN, fh: await sha(S.data.profile.driveFile) }]);
-            if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-            startApp();
+            await saveSessions([{ id: MAIN, fh: await sha(S.data.profile.driveFile), name: 'Principal' }]);
+            await enterSession(S, pass);
           } catch (err) {
             console.error(err);
             msg.textContent = 'No se pudo crear: ' + err.message;
@@ -317,14 +518,41 @@
       return;
     }
 
+    const bios = new Set();
+    for (const x of sessions) if (await DB.get(bioKey(x.id)).catch(() => null)) bios.add(x.id);
+    const canBio = bios.size ? await bioAvailable() : false;
+
+    // Más de una cuenta y ninguna elegida: lista para elegir.
+    const chosen = sessions.find(x => x.id === pickSid) || (sessions.length === 1 ? sessions[0] : null);
+    if (!chosen) {
+      const items = sessions.map(x => h('button', { class: 'acct', type: 'button', onclick: () => showLock(x.id) },
+        h('span', { class: 'acct-av', text: sessLabel(x).trim().charAt(0).toUpperCase() || '·' }),
+        h('span', { class: 'acct-n', text: sessLabel(x) }),
+        bios.has(x.id) && canBio ? h('span', { class: 'acct-bio', html: I.finger, title: 'Huella activada' }) : null,
+        h('span', { class: 'acct-go', html: I.chev })));
+      card.replaceChildren(h('div', { class: 'lock-mark brand-mark', html: I.app }),
+        h('h1', { text: 'notas-app' }), h('p', { text: 'Elegí la cuenta.' }),
+        h('div', { class: 'accts' }, items),
+        h('button', { class: 'linklike', type: 'button', text: '¿Olvidaste la contraseña?', onclick: forgotDialog }));
+      root.replaceChildren(card);
+      return;
+    }
+
+    const sid = chosen.id;
+    const multi = sessions.length > 1;
+    const hasBio = bios.has(sid) && canBio;
     const pw = h('input', { type: 'password', autocomplete: 'current-password', placeholder: 'Contraseña', 'aria-label': 'Contraseña' });
     const btn = h('button', { class: 'btn primary', type: 'submit', text: 'Desbloquear' });
+    const unnamed = sessions.some(x => !x.name && x.id !== MAIN);
     const form = h('form', {
       onsubmit: async e => {
         e.preventDefault();
         if (!pw.value) return;
         btn.disabled = true; btn.textContent = 'Abriendo…'; msg.textContent = '';
-        const got = await openAny(pw.value).catch(() => null);
+        const pass = pw.value;
+        let got = await openOne(sid, pass).catch(() => null);
+        // Sesiones creadas antes de que se guardaran los nombres: la contraseña decide cuál es.
+        if (!got && unnamed) got = await openAny(pass).catch(() => null);
         if (!got) {
           msg.textContent = 'Contraseña incorrecta.';
           btn.disabled = false; btn.textContent = 'Desbloquear';
@@ -332,19 +560,33 @@
           return;
         }
         pw.value = '';
-        S = got;
-        normalizeData(S.data, S.sid);
-        if (!Array.isArray(await DB.get('sessions'))) await saveSessions([{ id: MAIN, fh: await sha(S.data.profile.driveFile) }]);
-        driveMeta = (await DB.get(driveKey(S.sid)).catch(() => null)) || null;
-        S.multi = (await listSessions()).length > 1;
-        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-        startApp();
+        await enterSession(got, pass);
       }
     }, pw, msg, btn);
-    card.append(h('h1', { text: 'notas-app' }), h('p', { text: 'Ingresá tu contraseña.' }), form,
-      h('button', { class: 'linklike', type: 'button', text: '¿Olvidaste la contraseña?', onclick: forgotDialog }));
+    const fp = hasBio ? h('button', { class: 'bio-btn', type: 'button', 'aria-label': 'Entrar con huella', onclick: async () => {
+      fp.disabled = true; msg.textContent = '';
+      try {
+        const got = await bioOpen(sid);
+        await enterSession(got, null);
+      } catch (e) {
+        console.error(e);
+        fp.disabled = false;
+        msg.textContent = bioMsg(e);
+        if (e && e.code === 'stale') { fp.hidden = true; pw.focus(); }
+      }
+    } }, h('span', { class: 'bio-ic', html: I.finger }), h('span', { class: 'bio-t', text: 'Entrar con huella' })) : null;
+    card.replaceChildren(h('div', { class: 'lock-mark', html: I.lock }),
+      h('h1', { text: multi ? sessLabel(chosen) : 'notas-app' }),
+      h('p', { text: hasBio ? 'Ingresá tu contraseña o usá la huella.' : 'Ingresá tu contraseña.' }),
+      form,
+      fp ? h('div', { class: 'bio-or' }, h('span', { text: 'o' })) : null,
+      fp,
+      h('div', { class: 'lock-links' },
+        multi ? h('button', { class: 'linklike', type: 'button', text: 'Cambiar de cuenta', onclick: () => showLock() }) : null,
+        h('button', { class: 'linklike', type: 'button', text: '¿Olvidaste la contraseña?', onclick: forgotDialog })));
     root.replaceChildren(card);
-    setTimeout(() => pw.focus(), 50);
+    // Con huella no se abre el teclado solo: así se ve el botón.
+    if (!hasBio || !narrow()) setTimeout(() => pw.focus(), 50);
   }
 
   function forgotDialog() {
@@ -369,6 +611,7 @@
     for (const x of await listSessions()) {
       await DB.del(vaultKey(x.id)).catch(() => {});
       await DB.del(driveKey(x.id)).catch(() => {});
+      await bioRemove(x.id);
     }
     await DB.del('vault').catch(() => {});
     await DB.del('drive').catch(() => {});
@@ -412,10 +655,10 @@
         const key = await deriveKey(p1.value, salt, KDF_ITER);
         const data = { v: 1, notes: [], cats: [], profile: { name: nm, driveFile: file } };
         await DB.put(vaultKey(sid), await seal(key, salt, KDF_ITER, data));
-        await saveSessions([...list, { id: sid, fh }]);
+        await saveSessions([...list, { id: sid, fh, name: nm }]);
         p1.value = p2.value = '';
         d.close();
-        await lock();
+        await lock(sid);
         toast(`Sesión "${nm}" creada. Entrá con su contraseña.`, 5000);
       } catch (e) {
         msg.textContent = e.message || String(e);
@@ -423,7 +666,7 @@
       }
     });
     openDialog(d, 'Crear otra sesión', [
-      h('p', { class: 'muted small', text: 'Cada sesión tiene sus propias notas, su contraseña y su conexión a Drive. En la pantalla de bloqueo, la contraseña que pongas decide qué sesión se abre. No se muestra cuántas sesiones hay.' }),
+      h('p', { class: 'muted small', text: 'Cada sesión tiene sus propias notas, su contraseña y su conexión a Drive. Al abrir la app elegís la cuenta y entrás con su contraseña o, si la activás, con la huella.' }),
       name, p1, p2, msg,
       h('p', { class: 'muted small', text: 'Para usar esta misma sesión en otro dispositivo, creala allá con el mismo nombre y conectá Drive: encuentra el archivo y te pide su contraseña.' })
     ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
@@ -443,6 +686,7 @@
       const list = (await listSessions()).filter(x => x.id !== sid);
       await DB.del(vaultKey(sid));
       await DB.del(driveKey(sid)).catch(() => {});
+      await bioRemove(sid);
       if (list.length) await saveSessions(list); else await DB.del('sessions');
       location.reload();
     });
@@ -599,7 +843,7 @@
     to.addEventListener('change', () => { ui.to = to.value; ui.year = ''; renderList(); });
     $('#sidebar').replaceChildren(
       h('div', { class: 'side-head', id: 'side-head' },
-        h('div', { class: 'brand', 'data-tip': S.multi ? `Sesión abierta: ${S.data.profile.name}. Hay más de una sesión en este dispositivo y cada contraseña abre la suya.` : 'notas-app ' + APP_VERSION },
+        h('div', { class: 'brand', 'data-tip': S.multi ? `Sesión abierta: ${S.data.profile.name}. Hay más de una sesión en este dispositivo; para cambiar, Menú, "Bloquear ahora o cambiar de sesión".` : 'notas-app ' + APP_VERSION },
           h('span', { class: 'app-mark', html: I.app, 'aria-label': 'notas-app', role: 'img' }),
           S.multi ? h('span', { class: 'brand-s', text: S.data.profile.name }) : null),
         h('button', { class: 'btn ghost icon sync-btn', id: 'sync-btn', type: 'button', hidden: !driveConfigured(), onclick: syncBtnTap, html: I.cloud + I.spin + '<span class="sync-badge"></span>' }),
@@ -1092,9 +1336,101 @@
       onclick: () => { if (view.tab !== id) switchTab(n, id); }
     }, h('span', { class: 'tab-l', text: label }), sub ? h('span', { class: 'tab-s', text: sub }) : null);
     tabs.append(mk('nota', 'Nota'));
-    n.transcripts.forEach(t => tabs.append(mk(t.id, secLabel(n, t), wordsLabel(t.text))));
+    n.transcripts.forEach(t => {
+      const b = mk(t.id, secLabel(n, t), wordsLabel(t.text));
+      b.classList.add('sec');
+      b.dataset.sid = t.id;
+      tabs.append(b);
+    });
     tabs.append(h('button', { class: 'tab add', title: 'Agregar una sección', onclick: () => pickSection(n) }, '+ Sección'));
+    if (n.transcripts.length > 1) dragTabs(n, tabs);
     return tabs;
+  }
+
+  /* ---------- Reordenar secciones: toque largo y arrastre (con mouse, arrastrar directo) ---------- */
+  // "Nota" queda siempre primera; se mueven solo las pestañas de sección.
+  let tabDragEnd = 0; // el toque que termina un arrastre no cambia de pestaña
+  function dragTabs(n, tabs) {
+    let st = null; // { el, id, pid, sx, sy, timer, on, dx0, raf, x }
+    const secs = () => [...tabs.querySelectorAll('.tab.sec')];
+    function start() {
+      st.on = true;
+      if (navigator.vibrate) navigator.vibrate(15);
+      tabs.classList.add('dragging');
+      st.el.classList.add('drag');
+    }
+    function move(x) {
+      st.x = x;
+      const el = st.el;
+      const list = secs();
+      const others = list.filter(o => o !== el);
+      // Lugar según el centro de cada pestaña vecina.
+      let before = null;
+      for (const o of others) { const r = o.getBoundingClientRect(); if (x < r.left + r.width / 2) { before = o; break; } }
+      const ref = before || tabs.querySelector('.tab.add');
+      if (el.nextElementSibling !== ref) tabs.insertBefore(el, ref);
+      // Desplaza la fila si el dedo llega a un borde.
+      const r = tabs.getBoundingClientRect();
+      if (!st.raf) st.raf = requestAnimationFrame(function edge() {
+        st && (st.raf = 0);
+        if (!st || !st.on) return;
+        const d = st.x < r.left + 36 ? -8 : st.x > r.right - 36 ? 8 : 0;
+        if (d) { tabs.scrollLeft += d; move(st.x); }
+      });
+    }
+    function finish(commit) {
+      if (!st) return;
+      clearTimeout(st.timer);
+      const was = st.on;
+      if (was) {
+        tabDragEnd = Date.now();
+        st.el.classList.remove('drag');
+        tabs.classList.remove('dragging');
+        if (commit) {
+          const order = secs().map(o => o.dataset.sid);
+          const cur = n.transcripts.map(t => t.id);
+          if (order.join() !== cur.join()) {
+            commitEditor();
+            const byId = new Map(n.transcripts.map(t => [t.id, t]));
+            n.transcripts = order.map(id => byId.get(id)).filter(Boolean);
+            touch(n);
+          }
+        }
+      }
+      st = null;
+      listen(false);
+      if (was && !commit) renderEditor();
+    }
+    // Mover y soltar se escuchan en toda la ventana: al reubicar la pestaña el navegador puede perder su captura.
+    function onMove(e) {
+      if (!st || e.pointerId !== st.pid) return;
+      if (!st.on) {
+        const d = Math.hypot(e.clientX - st.sx, e.clientY - st.sy);
+        if (st.mouse && d > 6) start();
+        else if (!st.mouse && d > 10) { finish(false); return; }
+        else return;
+      }
+      e.preventDefault();
+      move(e.clientX);
+    }
+    function onUp(e) { if (st && e.pointerId === st.pid) finish(e.type === 'pointerup' || st.on); }
+    function listen(on) {
+      const f = on ? addEventListener : removeEventListener;
+      f('pointermove', onMove, true); f('pointerup', onUp, true); f('pointercancel', onUp, true);
+    }
+    tabs.addEventListener('pointerdown', e => {
+      if (st) finish(false);
+      const el = e.target.closest('.tab.sec');
+      if (!el || e.button) return;
+      st = { el, pid: e.pointerId, sx: e.clientX, sy: e.clientY, on: false, x: e.clientX, mouse: e.pointerType === 'mouse', timer: 0, raf: 0 };
+      if (!st.mouse) st.timer = setTimeout(() => { if (st) start(); }, 420);
+      listen(true);
+    });
+    // Mientras se arrastra, el dedo no desplaza la fila ni la página.
+    tabs.addEventListener('touchmove', e => { if (st && st.on && e.cancelable) e.preventDefault(); }, { passive: false });
+    tabs.addEventListener('contextmenu', e => { if (e.target.closest('.tab.sec')) e.preventDefault(); });
+    // Solo se descarta el clic que el navegador genera al soltar, no los toques siguientes.
+    tabs.addEventListener('click', e => { if (tabDragEnd && Date.now() - tabDragEnd < 350) { tabDragEnd = 0; e.preventDefault(); e.stopPropagation(); } }, true);
   }
 
   function pickSection(n) {
@@ -1700,6 +2036,7 @@
       B('Descargar backup encriptado', exportBackup),
       B('Restaurar backup encriptado', importBackup),
       Hd('Seguridad y sesiones'),
+      S.bioOk || S.bioOn ? B(S.bioOn ? 'Desactivar el ingreso con huella' : 'Activar el ingreso con huella', bioFromMenu) : null,
       B('Cambiar contraseña', changePasswordDialog),
       B('Crear otra sesión', newSessionDialog),
       Hd('Borrar'),
@@ -2164,13 +2501,18 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
         }
       }
       const salt = crypto.getRandomValues(new Uint8Array(16));
+      const hadBio = S.bioOn;
+      const raw = hadBio ? rawKey(p1.value, salt, KDF_ITER) : null;
+      if (raw) raw.catch(() => {});
       S.key = await deriveKey(p1.value, salt, KDF_ITER);
       S.salt = salt; S.iter = KDF_ITER;
       cur.value = p1.value = p2.value = '';
       await queueSave();
+      if (hadBio) await bioRemove(S.sid);
       if (driveOn()) { G.forcePush = true; syncNow(); }
       d.close();
       toast('Contraseña cambiada. Los backups viejos siguen abriéndose con la anterior.', 5000);
+      if (hadBio) offerBio(raw, 'Cambiaste la contraseña, así que la huella se desactivó. ¿La volvés a activar?');
     });
     openDialog(d, 'Cambiar contraseña', [cur, p1, p2, msg], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
     setTimeout(() => cur.focus(), 50);
@@ -2386,6 +2728,11 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
         if (!S) return null;
         if (await openAny(pw, S.sid)) { toast('Esa contraseña ya abre otra sesión de este dispositivo. Para unir estas notas, usá una contraseña distinta en cada sesión.', 7000); return null; }
         S.key = key; S.salt = salt; S.iter = remote.iter;
+        if (S.bioOn) {
+          await bioRemove(S.sid);
+          const raw = rawKey(pw, salt, remote.iter); raw.catch(() => {});
+          setTimeout(() => offerBio(raw, 'Ahora esta sesión usa la contraseña de Drive, así que la huella se desactivó. ¿La volvés a activar?'), 300);
+        }
         return data;
       } catch { toast('Contraseña incorrecta.'); }
     }
