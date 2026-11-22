@@ -653,3 +653,11 @@ button, [data-tip] { -webkit-touch-callout: none; -webkit-user-select: none; use
 .dr-foot { margin: auto 12px 0; padding-top: 16px; font-size: 12px; color: var(--muted); }
 .dr-inner:focus { outline: none; }
 .menu button.on { font-weight: 600; color: var(--accent); }
+.dr-sep { border-top: 1px solid var(--line); margin: 14px 12px 8px; }
+.danger-opt {
+  display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); background: none; color: var(--ink); border-radius: 12px; padding: 12px 14px; margin-top: 8px;
+}
+.danger-opt:hover, .danger-opt:focus-visible { border-color: var(--danger); }
+.danger-t { color: var(--danger); font-weight: 600; font-size: 15px; }
+.danger-d { color: var(--muted); font-size: 13px; line-height: 1.4; }

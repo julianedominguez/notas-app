@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.8.1';
+  const APP_VERSION = '1.8.2';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -48,6 +48,7 @@
     tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.2V4.8c0-.7.6-1.3 1.3-1.3h7.4l8.3 8.3a1.3 1.3 0 0 1 0 1.8l-7.4 7.4a1.3 1.3 0 0 1-1.8 0z"/><circle cx="8.3" cy="8.3" r="1.4"/></svg>',
     type: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19l5-14 5 14M5.8 14.5h6.4"/><path d="M15.5 12.5c.5-1 1.5-1.5 2.6-1.5 1.6 0 2.4 1 2.4 2.4V19M20.5 15.5c-3.5 0-5 .6-5 2 0 1 .8 1.6 1.9 1.6 1.6 0 3.1-1.1 3.1-3"/></svg>',
     cloud2: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.2 18.5h9.9a3.9 3.9 0 0 0 .5-7.77A5.6 5.6 0 0 0 6.9 9.8a4.35 4.35 0 0 0 .3 8.7z"/></svg>',
+    timer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M10 2.5h4"/></svg>',
     pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
     note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h5M9 12h7M9 15.5h7"/></svg>'
   };
@@ -653,10 +654,10 @@
   function newSessionDialog() {
     const d = $('#dlg');
     const name = h('input', { type: 'text', placeholder: 'Nombre (ej. Trabajo)', autocomplete: 'off', maxlength: '40' });
-    const p1 = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Contraseña de la nueva sesión' });
+    const p1 = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Contraseña de la nueva cuenta' });
     const p2 = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Repetila' });
     const msg = h('p', { class: 'small', text: '' });
-    const ok = h('button', { class: 'btn primary', text: 'Crear sesión' });
+    const ok = h('button', { class: 'btn primary', text: 'Crear cuenta' });
     ok.addEventListener('click', async () => {
       msg.textContent = '';
       const nm = name.value.trim();
@@ -681,13 +682,13 @@
         p1.value = p2.value = '';
         d.close();
         await lock(sid);
-        toast(`Sesión "${nm}" creada. Entrá con su contraseña.`, 5000);
+        toast(`Cuenta "${nm}" creada. Entrá con su contraseña.`, 5000);
       } catch (e) {
         msg.textContent = e.message || String(e);
-        ok.disabled = false; ok.textContent = 'Crear sesión';
+        ok.disabled = false; ok.textContent = 'Crear cuenta';
       }
     });
-    openDialog(d, 'Crear otra sesión', [
+    openDialog(d, 'Agregar otra cuenta', [
       h('p', { class: 'muted small', text: 'Cada sesión tiene sus propias notas, su contraseña y su conexión a Drive. Al abrir la app elegís la cuenta y entrás con su contraseña o, si la activás, con la huella.' }),
       name, p1, p2, msg,
       h('p', { class: 'muted small', text: 'Para usar esta misma sesión en otro dispositivo, creala allá con el mismo nombre y conectá Drive: encuentra el archivo y te pide su contraseña.' })
@@ -757,8 +758,8 @@
       if (list.length) await saveSessions(list); else await DB.del('sessions');
       location.reload();
     });
-    openDialog(d, 'Eliminar esta sesión', [
-      h('p', { text: `Se borran de este dispositivo las notas de la sesión "${S.data.profile.name}". Las demás sesiones no se tocan. El archivo en Drive, si está conectado, queda en tu Drive.` }),
+    openDialog(d, 'Eliminar esta cuenta', [
+      h('p', { text: `Se borran de este dispositivo las notas de la cuenta "${S.data.profile.name}". Las demás cuentas no se tocan. El archivo en Drive, si está conectado, queda en tu Drive.` }),
       conf
     ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
   }
@@ -2119,46 +2120,48 @@
     const d = $('#drawer');
     const Hd = t => h('div', { class: 'dr-h', text: t });
     let body;
+    // Orden según buenas prácticas de menús: lo más usado arriba, agrupado por tema,
+    // y lo destructivo una sola vez, al final del menú de la cuenta y separado del resto.
     if (kind === 'app') {
       body = [
         h('div', { class: 'dr-head' },
           h('span', { class: 'app-mark', html: I.app }),
-          h('div', null, h('div', { class: 'dr-title', text: 'notas-app' }), h('div', { class: 'dr-sub', text: 'Versión ' + APP_VERSION }))),
+          h('div', { class: 'dr-title', text: 'notas-app' })),
         Hd('Notas'),
-        drawerItem(I.plus, 'Nueva nota', newNote),
+        drawerItem(I.copy, 'Copiar o descargar notas como texto', () => exportDialog(null)),
         drawerItem(I.docx, 'Nueva nota desde un archivo .docx', newNoteFromDocx),
         drawerItem(I.textin, 'Importar notas desde texto', importDialog),
-        drawerItem(I.copy, 'Copiar o descargar notas como texto', () => exportDialog(null)),
+        Hd('Ajustes'),
+        drawerItem(I.type, 'Apariencia y escritura', readingDialog),
         drawerItem(I.tag, 'Categorías de secciones', catsDialog),
-        Hd('Apariencia'),
-        drawerItem(I.type, 'Tipografía, tamaño de letra y escritura', readingDialog),
         Hd('Respaldo'),
         drawerItem(I.download, 'Descargar backup encriptado', exportBackup),
         drawerItem(I.upload, 'Restaurar backup encriptado', importBackup),
-        Hd('Este dispositivo'),
-        drawerItem(I.trash, S.multi ? 'Borrar todas las sesiones' : 'Borrar todo de este dispositivo', wipeDialog, 'danger'),
-        h('p', { class: 'dr-foot', text: `${liveNotes().length} notas en esta sesión · se bloquea tras ${lockLabel(lockMin())} sin uso` })
+        h('p', { class: 'dr-foot', text: `notas-app ${APP_VERSION} · ${liveNotes().length} notas en esta cuenta` })
       ];
     } else {
       const conf = driveConfigured();
+      const on = conf && driveOn();
       body = [
         h('div', { class: 'dr-head dr-acct' },
           h('span', { class: 'avatar big', 'data-state': conf ? syncVisual()[0] : '' }, h('span', { class: 'av-l', text: initialOf(S.data.profile.name) }), h('span', { class: 'av-dot' })),
           h('div', { class: 'dr-hx' },
             h('div', { class: 'dr-title', text: S.data.profile.name }),
             h('div', { class: 'dr-sub', id: 'dr-sync', text: conf ? '' : 'Sin sincronizar' }))),
-        conf ? (driveOn() ? drawerItem(I.refresh, 'Sincronizar ahora', syncTap) : drawerItem(I.cloud2, 'Conectar Google Drive', connectDrive)) : null,
+        conf ? (on ? drawerItem(I.refresh, 'Sincronizar ahora', syncTap) : drawerItem(I.cloud2, 'Conectar Google Drive', connectDrive)) : null,
         drawerItem(I.lock, 'Bloquear ahora', lock),
         S.multi ? drawerItem(I.users, 'Cambiar de cuenta', lock) : null,
         Hd('Seguridad'),
         S.bioOk || S.bioOn ? drawerItem(I.finger, S.bioOn ? 'Desactivar el ingreso con huella' : 'Activar el ingreso con huella', bioFromMenu) : null,
-        drawerItem(I.lock, 'Bloqueo automático: ' + lockLabel(lockMin()), lockTimeDialog),
-        drawerItem(I.key, 'Cambiar contraseña de la sesión', changePasswordDialog),
-        Hd('Sesiones'),
-        drawerItem(I.pen, 'Cambiar el nombre de la cuenta', renameDialog),
-        drawerItem(I.userplus, 'Crear otra sesión', newSessionDialog),
-        conf && driveOn() ? drawerItem(I.unlink, 'Desconectar Google Drive', disconnectDrive) : null,
-        S.multi ? drawerItem(I.trash, 'Eliminar esta sesión de este dispositivo', deleteSessionDialog, 'danger') : null
+        drawerItem(I.timer, 'Bloqueo automático: ' + lockLabel(lockMin()), lockTimeDialog),
+        drawerItem(I.key, 'Cambiar contraseña', changePasswordDialog),
+        Hd('Esta cuenta'),
+        drawerItem(I.pen, 'Cambiar el nombre', renameDialog),
+        on ? drawerItem(I.unlink, 'Desconectar Google Drive', disconnectDrive) : null,
+        Hd('Este dispositivo'),
+        drawerItem(I.userplus, 'Agregar otra cuenta', newSessionDialog),
+        h('div', { class: 'dr-sep' }),
+        drawerItem(I.trash, 'Eliminar cuentas o datos…', dangerDialog, 'danger')
       ];
     }
     d.className = 'drawer ' + (kind === 'app' ? 'left' : 'right');
@@ -2760,13 +2763,25 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
       toast('Contraseña cambiada. Los backups viejos siguen abriéndose con la anterior.', 5000);
       if (hadBio) offerBio(raw, 'Cambiaste la contraseña, así que la huella se desactivó. ¿La volvés a activar?');
     });
-    openDialog(d, 'Cambiar contraseña de la sesión', [
+    openDialog(d, 'Cambiar contraseña', [
       h('p', { class: 'muted small', text: `Es la contraseña con la que entrás a "${S.data.profile.name}" y que encripta sus notas, en este dispositivo y en Drive. En los otros dispositivos te la va a pedir la próxima vez que sincronicen. Los backups que ya descargaste siguen abriéndose con la contraseña anterior; los nuevos usan la nueva.` }),
       cur, p1, p2, msg], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
     setTimeout(() => cur.focus(), 50);
   }
 
   /* ---------- Borrar todo ---------- */
+  // Zona de peligro: un solo lugar para todo lo que borra, cada opción con su propia confirmación.
+  function dangerDialog() {
+    const d = $('#dlg');
+    const opt = (title, desc, fn) => h('button', { class: 'danger-opt', type: 'button', onclick: () => { d.close(); fn(); } },
+      h('span', { class: 'danger-t', text: title }), h('span', { class: 'danger-d', text: desc }));
+    openDialog(d, 'Eliminar cuentas o datos', [
+      h('p', { class: 'muted small', text: 'Esto borra notas de este dispositivo y no se puede deshacer. Lo que esté en Google Drive o en un backup no se toca.' }),
+      S.multi ? opt(`Eliminar la cuenta "${S.data.profile.name}"`, 'Solo esta cuenta, en este dispositivo. Las otras cuentas quedan como están.', deleteSessionDialog) : null,
+      opt(S.multi ? 'Borrar todas las cuentas' : 'Borrar todo de este dispositivo', S.multi ? 'Todas las cuentas y sus notas de este dispositivo. La app queda como recién instalada.' : 'La cuenta y sus notas de este dispositivo. La app queda como recién instalada.', wipeDialog)
+    ].filter(Boolean), [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() })]);
+  }
+
   function wipeDialog() {
     const d = $('#dlg');
     const conf = h('input', { type: 'text', placeholder: 'Escribí BORRAR', autocomplete: 'off' });

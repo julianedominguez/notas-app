@@ -19,7 +19,7 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 ## Sesiones
 
 - Un mismo dispositivo puede tener varias sesiones (cuentas), cada una con sus notas, su contraseña y su conexión a Drive (otra cuenta de Google o la misma con otro archivo).
-- Se crean desde tu cuenta (el círculo de arriba a la derecha), "Crear otra sesión". Al abrir la app, si hay más de una, primero se elige la cuenta y después se entra con su contraseña o con la huella. Si hay una sola, va directo a la contraseña.
+- Se crean desde tu cuenta (el círculo de arriba a la derecha), "Agregar otra cuenta". Al abrir la app, si hay más de una, primero se elige la cuenta y después se entra con su contraseña o con la huella. Si hay una sola, va directo a la contraseña.
 - Los nombres de las sesiones quedan a la vista en la pantalla de inicio de ese dispositivo (las notas siguen encriptadas). Las sesiones creadas con versiones anteriores aparecen como "Otra sesión" hasta que se entra una vez.
 - Cada sesión queda atada a la cuenta de Google con la que conectó Drive. Si al renovar el acceso se elige otra cuenta, la app lo rechaza.
 - Para usar una sesión en otro dispositivo, se crea allá con el mismo nombre y se conecta Drive: encuentra su archivo (`notas-app-<nombre>.txt`) y pide su contraseña. La primera sesión usa `notas-app-vault.txt`, como antes.
@@ -49,8 +49,8 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 ## Lista de notas
 
 - Arriba, una barra de búsqueda como la de Gmail: ☰ abre el menú de la app, el texto busca en notas y secciones, el ícono de ajustes abre los filtros (etiquetas, año o rango de fechas, notas con cierta sección) y el círculo con la inicial abre tu cuenta.
-- Menú de la app (☰, o deslizando hacia la derecha sobre la lista): nueva nota, .docx, importar, copiar o descargar como texto, categorías, tipografía, backups y borrar todo.
-- Tu cuenta (el círculo): sincronizar o conectar Drive, bloquear, tiempo de bloqueo automático (de 1 minuto a 1 hora, por dispositivo), cambiar de cuenta, huella, contraseña de la sesión, cambiar el nombre de la cuenta, crear o eliminar sesiones. El puntito del círculo es el estado de Drive: verde sincronizado, ámbar con cambios sin subir o para reconectar, rojo si falló, gris sin conexión.
+- Menú de la app (☰, o deslizando hacia la derecha sobre la lista): copiar o descargar como texto, nota desde .docx, importar, apariencia, categorías y backups.
+- Tu cuenta (el círculo): sincronizar o conectar Drive, bloquear, cambiar de cuenta; seguridad (huella, bloqueo automático de 1 minuto a 1 hora por dispositivo, contraseña); esta cuenta (nombre, desconectar Drive); este dispositivo (agregar otra cuenta). Al final y separado, "Eliminar cuentas o datos…", el único lugar con opciones que borran. El puntito del círculo es el estado de Drive: verde sincronizado, ámbar con cambios sin subir o para reconectar, rojo si falló, gris sin conexión.
 - Tirar la lista hacia abajo sincroniza con Drive.
 - Las notas van separadas por una línea fina, con la fecha corta a la derecha y un rótulo de mes y año que queda pegado arriba al deslizar.
 - Botón + abajo a la derecha para una nota nueva. Toque largo en una nota para elegir varias y copiarlas, descargarlas o borrarlas juntas.
