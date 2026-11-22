@@ -14,19 +14,19 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 
 - Android o PC (Chrome o Edge): abrir la dirección y elegir "Instalar app".
 - iPhone (Safari): Compartir, "Agregar a pantalla de inicio". Sin esto, Safari puede borrar los datos de una web que no se usa por una semana.
-- Cada dispositivo tiene su propia copia. Para pasar notas entre dispositivos: Google Drive, o Menú, "Descargar backup encriptado" en uno y "Restaurar backup encriptado" en el otro.
+- Cada dispositivo tiene su propia copia. Para pasar notas entre dispositivos: Google Drive, o el menú de la app (☰), "Descargar backup encriptado" en uno y "Restaurar backup encriptado" en el otro.
 
 ## Sesiones
 
 - Un mismo dispositivo puede tener varias sesiones (cuentas), cada una con sus notas, su contraseña y su conexión a Drive (otra cuenta de Google o la misma con otro archivo).
-- Se crean desde Menú, "Crear otra sesión". Al abrir la app, si hay más de una, primero se elige la cuenta y después se entra con su contraseña o con la huella. Si hay una sola, va directo a la contraseña.
+- Se crean desde tu cuenta (el círculo de arriba a la derecha), "Crear otra sesión". Al abrir la app, si hay más de una, primero se elige la cuenta y después se entra con su contraseña o con la huella. Si hay una sola, va directo a la contraseña.
 - Los nombres de las sesiones quedan a la vista en la pantalla de inicio de ese dispositivo (las notas siguen encriptadas). Las sesiones creadas con versiones anteriores aparecen como "Otra sesión" hasta que se entra una vez.
 - Cada sesión queda atada a la cuenta de Google con la que conectó Drive. Si al renovar el acceso se elige otra cuenta, la app lo rechaza.
 - Para usar una sesión en otro dispositivo, se crea allá con el mismo nombre y se conecta Drive: encuentra su archivo (`notas-app-<nombre>.txt`) y pide su contraseña. La primera sesión usa `notas-app-vault.txt`, como antes.
 
 ## Huella
 
-- Después de entrar con la contraseña, la app ofrece activar la huella para esa cuenta en ese dispositivo (también desde Menú, "Seguridad y sesiones"). Si se elige "Ahora no", no vuelve a preguntar.
+- Después de entrar con la contraseña, la app ofrece activar la huella para esa cuenta en ese dispositivo (también desde tu cuenta, el círculo de arriba a la derecha). Si se elige "Ahora no", no vuelve a preguntar.
 - Usa una llave de acceso del teléfono (WebAuthn con la extensión PRF): al apoyar el dedo, el teléfono entrega un secreto que desencripta una copia de la clave de la bóveda guardada solo en ese dispositivo. Sin la huella esa copia no sirve, y nunca se guarda la contraseña.
 - La contraseña sigue siendo la llave principal. Si se cambia (acá, en otro dispositivo o al unir con Drive), la huella se desactiva y se ofrece activarla de nuevo.
 - Funciona en Chrome para Android y en iPhone con iOS 18 o posterior; en la PC, con Windows Hello o Touch ID. Si el dispositivo no lo permite, el botón no aparece.
@@ -36,7 +36,7 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 
 - Cada nota tiene una pestaña con el texto y una pestaña por sección, para leer y editar a pantalla completa.
 - Para cambiar el orden de las secciones: toque largo en una pestaña y arrastrarla (con mouse, arrastrar directo). "Nota" queda siempre primera. El orden se guarda en la nota y es el que se usa al copiar o descargar.
-- Las secciones son de una categoría: Transcripción o las que definas en Menú, "Categorías de secciones" (por ejemplo Resumen o Comentarios). Todas tienen el mismo formato que la nota. "+ Sección" agrega una pestaña de la categoría que elijas.
+- Las secciones son de una categoría: Transcripción o las que definas en el menú de la app (☰), "Categorías de secciones" (por ejemplo Resumen o Comentarios). Todas tienen el mismo formato que la nota. "+ Sección" agrega una pestaña de la categoría que elijas.
 - Las transcripciones que estaban en texto plano se abren con cada renglón tal cual. Se guardan con formato recién cuando las editás; hasta entonces se exportan igual que antes.
 - Tablas en la nota y en cualquier sección: botón de tabla en la barra de formato. Con el cursor dentro de una tabla, la barra muestra "+ Fila", "+ Columna", "− Fila", "− Columna" y "Quitar tabla". Las tablas anchas se deslizan de costado. Son tablas simples (encabezado, filas y columnas, negrita o cursiva en las celdas): no hay celdas combinadas ni listas dentro de una celda.
 - El texto acepta formato: títulos (T1, T2, T3), negrita, cursiva, tachado, viñetas, listas numeradas, tareas, citas y líneas divisorias. Se guarda como Markdown, así que al copiarlo a un chat mantiene la estructura.
@@ -48,11 +48,14 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 
 ## Lista de notas
 
-- Arriba: botón de Drive (verde sincronizado, ámbar con cambios sin subir o para reconectar, rojo si falló, gris sin conectar; un toque sincroniza o conecta), lupa con buscador y filtros (etiquetas, año o rango de fechas, notas con cierta sección) y el menú. "Bloquear ahora" es la primera opción del menú.
-- Botón + abajo a la derecha para una nota nueva.
-- Toque largo en una nota para elegir varias y copiarlas, descargarlas o borrarlas juntas.
-- Toque largo en cualquier botón: muestra qué hace, sin ejecutarlo. En el de Drive dice el estado (Sincronizado, Cambios sin subir, Error al sincronizar, etc.) y qué hacer.
-- El nombre chico al lado del ícono es la sesión abierta. Solo aparece si en el dispositivo hay más de una sesión.
+- Arriba, una barra de búsqueda como la de Gmail: ☰ abre el menú de la app, el texto busca en notas y secciones, el ícono de ajustes abre los filtros (etiquetas, año o rango de fechas, notas con cierta sección) y el círculo con la inicial abre tu cuenta.
+- Menú de la app (☰, o deslizando hacia la derecha sobre la lista): nueva nota, .docx, importar, copiar o descargar como texto, categorías, tipografía, backups y borrar todo.
+- Tu cuenta (el círculo): sincronizar o conectar Drive, bloquear, cambiar de cuenta, huella, contraseña, crear o eliminar sesiones. El puntito del círculo es el estado de Drive: verde sincronizado, ámbar con cambios sin subir o para reconectar, rojo si falló, gris sin conexión.
+- Tirar la lista hacia abajo sincroniza con Drive.
+- Las notas van separadas por una línea fina, con la fecha corta a la derecha y un rótulo de mes y año que queda pegado arriba al deslizar.
+- Botón + abajo a la derecha para una nota nueva. Toque largo en una nota para elegir varias y copiarlas, descargarlas o borrarlas juntas.
+- Toque largo en cualquier botón: muestra qué hace, sin ejecutarlo.
+- La barra de notificaciones toma el color de la pantalla que se está viendo (y se oscurece con un diálogo o un menú abierto).
 
 ## Celu
 
@@ -63,12 +66,12 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 
 ## Apariencia
 
-- Menú, "Tipografía, tamaño de letra y escritura" (o el botón Aa dentro de una nota). Hay ocho letras para elegir, cada una con su vista previa: Clásica, Sistema, Literata, Source Serif, Lora, Inter, Atkinson Hyperlegible y Nunito.
+- Menú de la app (☰), "Tipografía, tamaño de letra y escritura" (o el botón Aa dentro de una nota). Hay ocho letras para elegir, cada una con su vista previa: Clásica, Sistema, Literata, Source Serif, Lora, Inter, Atkinson Hyperlegible y Nunito.
 - Las seis últimas vienen con la app en `fonts/` (licencia libre SIL OFL 1.1, ver `fonts/LICENSE-*.txt`). Solo se descarga la que elijas, una vez, y queda guardada para usarla sin conexión.
 - La letra, el tamaño, la escritura centrada y el corrector se guardan en cada dispositivo.
 ## Copiar o descargar como texto
 
-- Desde una nota o desde el Menú. Se puede elegir una nota, varias marcándolas en una lista con buscador, todas, las de la búsqueda actual, un año o un rango de fechas.
+- Desde una nota o desde el menú de la app (☰). Se puede elegir una nota, varias marcándolas en una lista con buscador, todas, las de la búsqueda actual, un año o un rango de fechas.
 - También qué partes incluir: el texto de la nota y cada categoría de sección por separado.
 - Se copia para pegar en un chat o se descarga como .txt. En los dos casos sale sin encriptar.
 
@@ -89,4 +92,4 @@ etiquetas: <etiqueta1, etiqueta2 o vacío>
 
 Los bloques SECCION crean la categoría si no existe.
 
-Las instrucciones completas para que una IA ordene textos en este formato están dentro de la app: Menú, "Importar notas desde texto", "Ver instrucciones para la IA".
+Las instrucciones completas para que una IA ordene textos en este formato están dentro de la app: menú de la app (☰), "Importar notas desde texto", "Ver instrucciones para la IA".

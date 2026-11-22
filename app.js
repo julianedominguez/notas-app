@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.7.0';
+  const APP_VERSION = '1.8.0';
   const LOCK_MS = 5 * 60 * 1000;
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
@@ -35,6 +35,20 @@
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>',
     finger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 5.4A8.5 8.5 0 0 1 20.5 11v1.5"/><path d="M3.5 9.5a8.6 8.6 0 0 1 1.2-2.4"/><path d="M3.6 13.5c.6-1.2.9-2.4.9-3.5"/><path d="M8 20.2c1.4-2.4 2-5 2-7.7a2 2 0 0 1 4 0c0 .8 0 1.6-.1 2.4"/><path d="M12 12.5c0 3.4-.9 6.6-2.6 9"/><path d="M7.4 9.4A4.5 4.5 0 0 1 16.5 12.5c0 2.6-.4 5.1-1.2 7.4"/><path d="M5.5 17.5c.6-1.6 1-3.3 1-5"/><path d="M19.8 16a24 24 0 0 0 .6-3.5"/><path d="M13.2 21.5c.4-1 .7-2 1-3"/></svg>',
     chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+    burger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+    tune: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/></svg>',
+    key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5L19 4M16 7l2.5 2.5M14 9l2 2"/></svg>',
+    userplus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.5"/><path d="M3.5 19.5c.8-3.3 3.4-5 6.5-5s5.7 1.7 6.5 5"/><path d="M19 8v6M16 11h6"/></svg>',
+    users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19c.7-3 3-4.6 6-4.6s5.3 1.6 6 4.6"/><path d="M15.5 5.6a3 3 0 0 1 0 5.8M17.5 14.6c1.8.6 3 2 3.5 4.4"/></svg>',
+    unlink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/><path d="M4 4l16 16"/></svg>',
+    download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 19.5h14"/></svg>',
+    upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4.5M7.5 9L12 4.5 16.5 9"/><path d="M5 19.5h14"/></svg>',
+    docx: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/><path d="M9 12.5h6M9 16h4"/></svg>',
+    textin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 10h7M4 14h5"/><path d="M17 9v10M13.5 15.5L17 19l3.5-3.5"/></svg>',
+    tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.2V4.8c0-.7.6-1.3 1.3-1.3h7.4l8.3 8.3a1.3 1.3 0 0 1 0 1.8l-7.4 7.4a1.3 1.3 0 0 1-1.8 0z"/><circle cx="8.3" cy="8.3" r="1.4"/></svg>',
+    type: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19l5-14 5 14M5.8 14.5h6.4"/><path d="M15.5 12.5c.5-1 1.5-1.5 2.6-1.5 1.6 0 2.4 1 2.4 2.4V19M20.5 15.5c-3.5 0-5 .6-5 2 0 1 .8 1.6 1.9 1.6 1.6 0 3.1-1.1 3.1-3"/></svg>',
+    cloud2: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.2 18.5h9.9a3.9 3.9 0 0 0 .5-7.77A5.6 5.6 0 0 0 6.9 9.8a4.35 4.35 0 0 0 .3 8.7z"/></svg>',
     note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h5M9 12h7M9 15.5h7"/></svg>'
   };
 
@@ -420,7 +434,7 @@
     openDialog(d, '¿Entrar con huella?', [
       h('div', { class: 'bio-hero', html: I.finger }),
       h('p', { text: why || `La próxima vez que abras "${name}" en este dispositivo vas a poder entrar con la huella, además de con la contraseña.` }),
-      h('p', { class: 'muted small', text: 'La contraseña sigue siendo la llave principal: si cambiás de teléfono o la cambiás, se entra con ella y se vuelve a activar. Lo podés desactivar en Menú, "Seguridad y sesiones".' }),
+      h('p', { class: 'muted small', text: 'La contraseña sigue siendo la llave principal: si cambiás de teléfono o la cambiás, se entra con ella y se vuelve a activar. Lo podés desactivar desde tu cuenta, tocando el círculo de arriba a la derecha.' }),
       msg
     ], [later, ok]);
   }
@@ -575,7 +589,7 @@
         if (e && e.code === 'stale') { fp.hidden = true; pw.focus(); }
       }
     } }, h('span', { class: 'bio-ic', html: I.finger }), h('span', { class: 'bio-t', text: 'Entrar con huella' })) : null;
-    card.replaceChildren(h('div', { class: 'lock-mark', html: I.lock }),
+    card.replaceChildren(...[h('div', { class: 'lock-mark', html: I.lock }),
       h('h1', { text: multi ? sessLabel(chosen) : 'notas-app' }),
       h('p', { text: hasBio ? 'Ingresá tu contraseña o usá la huella.' : 'Ingresá tu contraseña.' }),
       form,
@@ -583,7 +597,7 @@
       fp,
       h('div', { class: 'lock-links' },
         multi ? h('button', { class: 'linklike', type: 'button', text: 'Cambiar de cuenta', onclick: () => showLock() }) : null,
-        h('button', { class: 'linklike', type: 'button', text: '¿Olvidaste la contraseña?', onclick: forgotDialog })));
+        h('button', { class: 'linklike', type: 'button', text: '¿Olvidaste la contraseña?', onclick: forgotDialog }))].filter(Boolean));
     root.replaceChildren(card);
     // Con huella no se abre el teclado solo: así se ve el botón.
     if (!hasBio || !narrow()) setTimeout(() => pw.focus(), 50);
@@ -841,18 +855,19 @@
     const to = h('input', { type: 'date', id: 'f-to', 'aria-label': 'Hasta', value: ui.to });
     from.addEventListener('change', () => { ui.from = from.value; ui.year = ''; renderList(); });
     to.addEventListener('change', () => { ui.to = to.value; ui.year = ''; renderList(); });
+    search.placeholder = 'Buscar en ' + (S.multi ? S.data.profile.name : 'tus notas');
     $('#sidebar').replaceChildren(
-      h('div', { class: 'side-head', id: 'side-head' },
-        h('div', { class: 'brand', 'data-tip': S.multi ? `Sesión abierta: ${S.data.profile.name}. Hay más de una sesión en este dispositivo; para cambiar, Menú, "Bloquear ahora o cambiar de sesión".` : 'notas-app ' + APP_VERSION },
-          h('span', { class: 'app-mark', html: I.app, 'aria-label': 'notas-app', role: 'img' }),
-          S.multi ? h('span', { class: 'brand-s', text: S.data.profile.name }) : null),
-        h('button', { class: 'btn ghost icon sync-btn', id: 'sync-btn', type: 'button', hidden: !driveConfigured(), onclick: syncBtnTap, html: I.cloud + I.spin + '<span class="sync-badge"></span>' }),
-        h('button', { class: 'btn ghost icon search-btn', id: 'search-btn', type: 'button', title: 'Buscar y filtrar', 'aria-label': 'Buscar y filtrar', 'aria-expanded': ui.searchOpen ? 'true' : 'false', html: I.search + '<span class="dot"></span>', onclick: toggleSearch }),
-        h('button', { class: 'btn ghost icon', title: 'Menú', 'aria-label': 'Menú', html: I.menu, onclick: menuDialog })
+      h('div', { class: 'ptr', id: 'ptr', 'aria-hidden': 'true', html: I.refresh }),
+      h('div', { class: 'topbar', id: 'side-head' },
+        h('div', { class: 'pill' },
+          h('button', { class: 'pill-btn', id: 'menu-btn', type: 'button', title: 'Menú de la app', 'aria-label': 'Menú de la app', html: I.burger, onclick: () => openDrawer('app') }),
+          search,
+          h('button', { class: 'pill-btn search-btn', id: 'search-btn', type: 'button', title: 'Filtrar por etiqueta, fecha o sección', 'aria-label': 'Filtros', 'aria-expanded': ui.searchOpen ? 'true' : 'false', html: I.tune + '<span class="dot"></span>', onclick: toggleSearch }),
+          h('button', { class: 'avatar', id: 'acct-btn', type: 'button', title: 'Tu cuenta', 'aria-label': 'Tu cuenta: ' + S.data.profile.name, onclick: () => openDrawer('acct') },
+            h('span', { class: 'av-l', text: initialOf(S.data.profile.name) }), h('span', { class: 'av-dot' })))
       ),
       h('div', { class: 'sel-bar', id: 'sel-bar', hidden: true }),
       h('div', { class: 'search-panel', id: 'search-panel', hidden: !ui.searchOpen },
-        search,
         h('div', { class: 'f-group', id: 'f-tags' }),
         h('div', { class: 'f-group', id: 'f-dates' }),
         h('div', { class: 'range f-range', id: 'f-range', hidden: true },
@@ -865,14 +880,16 @@
       h('button', { class: 'fab', id: 'fab', type: 'button', title: 'Nueva nota', 'aria-label': 'Nueva nota', html: I.plus, onclick: newNote })
     );
     renderSync();
+    pullToSync($('#list'));
+    edgeSwipe($('#sidebar'));
   }
+  const initialOf = name => ((name || '').trim().charAt(0) || '·').toUpperCase();
 
   function toggleSearch() {
     ui.searchOpen = !ui.searchOpen;
     $('#search-panel').hidden = !ui.searchOpen;
     $('#search-btn').setAttribute('aria-expanded', ui.searchOpen ? 'true' : 'false');
     renderList();
-    if (ui.searchOpen) setTimeout(() => $('#search').focus(), 30);
   }
 
   function chipBtn(label, on, onclick, count) {
@@ -1002,10 +1019,15 @@
       list.replaceChildren(h('div', { class: 'list-empty', text: total ? 'Ninguna nota coincide.' : 'Todavía no hay notas. Tocá + para crear una.' }));
       return;
     }
-    list.replaceChildren(...notes.map(n => {
+    const rows = [];
+    let lastMonth = null;
+    for (const n of notes) {
+      const mk = validISO(n.date || '') ? n.date.slice(0, 7) : '';
+      if (mk !== lastMonth) { lastMonth = mk; rows.push(h('div', { class: 'month', text: monthLabel(mk) })); }
       const trs = (n.transcripts || []).length;
       const allTr = (n.transcripts || []).every(t => catOf(t) === TR);
       const snip = plainSnippet(n.text).slice(0, 160);
+      const meta = !trs ? '' : allTr ? `${trs} transcripci${trs === 1 ? 'ón' : 'ones'}` : `${trs} secci${trs === 1 ? 'ón' : 'ones'}`;
       const picked = !!(ui.sel && ui.sel.has(n.id));
       const el = h('button', {
         class: 'item' + (n.id === ui.current && !ui.sel ? ' active' : '') + (picked ? ' picked' : ''),
@@ -1016,14 +1038,31 @@
           openNote(n.id);
         }
       },
-        h('div', { class: 'item-title' + (n.title ? '' : ' untitled'), text: n.title || 'Sin título' }),
-        h('div', { class: 'item-meta', text: fmtDate(n.date) + (!trs ? '' : allTr ? ` · ${trs} transcripci${trs === 1 ? 'ón' : 'ones'}` : ` · ${trs} secci${trs === 1 ? 'ón' : 'ones'}`) }),
-        snip ? h('div', { class: 'item-snip', text: snip }) : null,
+        h('div', { class: 'item-row' },
+          h('span', { class: 'item-title' + (n.title ? '' : ' untitled'), text: n.title || 'Sin título' }),
+          h('span', { class: 'item-date', text: shortDate(n.date) })),
+        meta || snip ? h('div', { class: 'item-snip' },
+          meta ? h('span', { class: 'item-meta', text: meta }) : null,
+          meta && snip ? ' · ' : null,
+          snip || null) : null,
         (n.tags || []).length ? h('div', { class: 'item-tags' }, n.tags.map(t => h('span', { text: t }))) : null
       );
       longPress(el, () => { if (ui.sel) { ui.sel.add(n.id); renderList(); } else startSelect(n.id); });
-      return el;
-    }));
+      rows.push(el);
+    }
+    list.replaceChildren(...rows);
+  }
+  const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  function monthLabel(ym) {
+    if (!ym) return 'Sin fecha';
+    const [y, m] = ym.split('-').map(Number);
+    return `${MONTHS[m - 1]} ${y}`;
+  }
+  function shortDate(iso) {
+    if (!iso || !validISO(iso)) return '';
+    const [y, m, d] = iso.split('-').map(Number);
+    const t = new Date(y, m - 1, d).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }).replace('.', '');
+    return y === new Date().getFullYear() ? t : `${t} ${String(y).slice(2)}`;
   }
   const renderListSoon = debounce(renderList, 300);
 
@@ -1127,6 +1166,7 @@
       .replace(/(^|[^\\])\|/g, '$1 ')
       .replace(/[*_~`]+/g, '')
       .replace(/\\([\\`*_{}\[\]()#+\-.!>|=])/g, '$1')
+      .replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (m, x) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", nbsp: ' ' })[x])
       .replace(/\s+/g, ' ').trim();
   }
   function wordCount(s) { const m = (s || '').match(/\S+/g); return m ? m.length : 0; }
@@ -1442,7 +1482,7 @@
     openDialog(d, 'Agregar sección', [
       h('div', { class: 'menu' }, allCatsForPick().map(c => h('button', { class: 'btn', text: c.name, onclick: go(c.id) }))),
       h('div', { class: 'row' }, input, h('button', { class: 'btn', text: 'Crear', onclick: create })),
-      h('p', { class: 'muted small', text: 'Las categorías se editan en Menú, "Categorías de secciones".' })
+      h('p', { class: 'muted small', text: 'Las categorías se editan en el menú de la app (☰), "Categorías de secciones".' })
     ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() })]);
   }
 
@@ -1936,7 +1976,7 @@
   function showTip(el) {
     const info = tipFor(el);
     if (!info) return;
-    tip.replaceChildren(h('strong', { text: info.title }), info.body ? h('span', { text: info.body }) : null);
+    tip.replaceChildren(...[h('strong', { text: info.title }), info.body ? h('span', { text: info.body }) : null].filter(Boolean));
     tip.classList.toggle('rich', !!info.body);
     tip.hidden = false;
     const r = el.getBoundingClientRect();
@@ -2010,41 +2050,192 @@
     });
   }
 
-  /* ---------- Menú ---------- */
-  function menuDialog() {
-    const d = $('#dlg');
-    if (driveConfigured()) loadGis().catch(() => {});
-    const go = fn => () => { d.close(); fn(); };
-    const Hd = t => h('div', { class: 'menu-h', text: t });
-    const B = (text, fn, cls) => h('button', { class: 'btn' + (cls ? ' ' + cls : ''), text, onclick: go(fn) });
-    const drive = driveConfigured() ? [
-      driveOn() ? h('p', { class: 'muted small sync-detail', text: 'Drive: ' + syncVisual()[1] + '. ' + syncVisual()[2] }) : null,
-      driveOn() ? B('Sincronizar con Drive ahora', syncTap) : B('Conectar Google Drive', connectDrive),
-      driveOn() ? B('Desconectar Google Drive', disconnectDrive) : null
-    ] : [];
-    openDialog(d, 'Menú', [h('div', { class: 'menu' },
-      h('button', { class: 'btn menu-top', html: I.lock + '<span>' + (S.multi ? 'Bloquear ahora o cambiar de sesión' : 'Bloquear ahora') + '</span>', onclick: go(lock) }),
-      Hd('Notas'),
-      B('Copiar o descargar notas como texto', () => exportDialog(null)),
-      B('Nueva nota desde un archivo .docx', newNoteFromDocx),
-      B('Importar notas desde texto', importDialog),
-      B('Categorías de secciones', catsDialog),
-      Hd('Apariencia'),
-      B('Tipografía, tamaño de letra y escritura', readingDialog),
-      Hd('Sincronización y respaldo'),
-      ...drive,
-      B('Descargar backup encriptado', exportBackup),
-      B('Restaurar backup encriptado', importBackup),
-      Hd('Seguridad y sesiones'),
-      S.bioOk || S.bioOn ? B(S.bioOn ? 'Desactivar el ingreso con huella' : 'Activar el ingreso con huella', bioFromMenu) : null,
-      B('Cambiar contraseña', changePasswordDialog),
-      B('Crear otra sesión', newSessionDialog),
-      Hd('Borrar'),
-      S.multi ? B('Eliminar esta sesión de este dispositivo', deleteSessionDialog, 'danger') : null,
-      B(S.multi ? 'Borrar todas las sesiones de este dispositivo' : 'Borrar todo de este dispositivo', wipeDialog, 'danger'),
-      h('p', { class: 'muted small menu-foot', text: `notas-app ${APP_VERSION} · sesión ${S.data.profile.name} · ${liveNotes().length} notas · se bloquea tras 5 minutos sin uso` })
-    )], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
+  /* ---------- Menús laterales: la app (izquierda) y la cuenta (derecha) ---------- */
+  function drawerItem(icon, text, fn, cls) {
+    return h('button', { class: 'dr-item' + (cls ? ' ' + cls : ''), type: 'button', onclick: () => { closeDrawer(); fn(); } },
+      h('span', { class: 'dr-ic', html: icon }), h('span', { class: 'dr-t', text }));
   }
+  function closeDrawer() {
+    const d = $('#drawer');
+    if (!d.open) return;
+    d.classList.remove('in');
+    setTimeout(() => { if (d.open && !d.classList.contains('in')) d.close(); }, 180);
+  }
+  function openDrawer(kind) {
+    if (!S) return;
+    const d = $('#drawer');
+    const Hd = t => h('div', { class: 'dr-h', text: t });
+    let body;
+    if (kind === 'app') {
+      body = [
+        h('div', { class: 'dr-head' },
+          h('span', { class: 'app-mark', html: I.app }),
+          h('div', null, h('div', { class: 'dr-title', text: 'notas-app' }), h('div', { class: 'dr-sub', text: 'Versión ' + APP_VERSION }))),
+        Hd('Notas'),
+        drawerItem(I.plus, 'Nueva nota', newNote),
+        drawerItem(I.docx, 'Nueva nota desde un archivo .docx', newNoteFromDocx),
+        drawerItem(I.textin, 'Importar notas desde texto', importDialog),
+        drawerItem(I.copy, 'Copiar o descargar notas como texto', () => exportDialog(null)),
+        drawerItem(I.tag, 'Categorías de secciones', catsDialog),
+        Hd('Apariencia'),
+        drawerItem(I.type, 'Tipografía, tamaño de letra y escritura', readingDialog),
+        Hd('Respaldo'),
+        drawerItem(I.download, 'Descargar backup encriptado', exportBackup),
+        drawerItem(I.upload, 'Restaurar backup encriptado', importBackup),
+        Hd('Este dispositivo'),
+        drawerItem(I.trash, S.multi ? 'Borrar todas las sesiones' : 'Borrar todo de este dispositivo', wipeDialog, 'danger'),
+        h('p', { class: 'dr-foot', text: `${liveNotes().length} notas en esta sesión · se bloquea tras 5 minutos sin uso` })
+      ];
+    } else {
+      const conf = driveConfigured();
+      body = [
+        h('div', { class: 'dr-head dr-acct' },
+          h('span', { class: 'avatar big', 'data-state': conf ? syncVisual()[0] : '' }, h('span', { class: 'av-l', text: initialOf(S.data.profile.name) }), h('span', { class: 'av-dot' })),
+          h('div', { class: 'dr-hx' },
+            h('div', { class: 'dr-title', text: S.data.profile.name }),
+            h('div', { class: 'dr-sub', id: 'dr-sync', text: conf ? '' : 'Sin sincronizar' }))),
+        conf ? (driveOn() ? drawerItem(I.refresh, 'Sincronizar ahora', syncTap) : drawerItem(I.cloud2, 'Conectar Google Drive', connectDrive)) : null,
+        drawerItem(I.lock, 'Bloquear ahora', lock),
+        S.multi ? drawerItem(I.users, 'Cambiar de cuenta', lock) : null,
+        Hd('Seguridad'),
+        S.bioOk || S.bioOn ? drawerItem(I.finger, S.bioOn ? 'Desactivar el ingreso con huella' : 'Activar el ingreso con huella', bioFromMenu) : null,
+        drawerItem(I.key, 'Cambiar contraseña', changePasswordDialog),
+        Hd('Sesiones'),
+        drawerItem(I.userplus, 'Crear otra sesión', newSessionDialog),
+        conf && driveOn() ? drawerItem(I.unlink, 'Desconectar Google Drive', disconnectDrive) : null,
+        S.multi ? drawerItem(I.trash, 'Eliminar esta sesión de este dispositivo', deleteSessionDialog, 'danger') : null
+      ];
+    }
+    d.className = 'drawer ' + (kind === 'app' ? 'left' : 'right');
+    d.setAttribute('aria-label', kind === 'app' ? 'Menú de la app' : 'Tu cuenta');
+    d.replaceChildren(h('nav', { class: 'dr-inner', tabindex: '-1', autofocus: true }, body));
+    if (kind !== 'app') renderSync();
+    if (driveConfigured()) loadGis().catch(() => {});
+    if (!d.open) d.showModal();
+    requestAnimationFrame(() => requestAnimationFrame(() => d.classList.add('in')));
+    swipeClose(d, kind === 'app' ? -1 : 1);
+  }
+  // Compatibilidad: lo que antes abría el menú ahora abre el de la app.
+  const menuDialog = () => openDrawer('app');
+  {
+    const d = document.getElementById('drawer');
+    d.addEventListener('click', e => { if (e.target === d) closeDrawer(); });
+    d.addEventListener('cancel', e => { e.preventDefault(); closeDrawer(); });
+    d.addEventListener('close', () => { d.classList.remove('in'); d.replaceChildren(); });
+  }
+  // Deslizar el menú hacia afuera lo cierra. dir: -1 se va a la izquierda, 1 a la derecha.
+  // Con eventos táctiles: siguen llegando aunque el navegador empiece a desplazar.
+  function swipeClose(d, dir) {
+    const inner = d.firstChild;
+    let sx = 0, sy = 0, dx = 0, on = false, track = false;
+    inner.addEventListener('touchstart', e => { if (e.touches.length !== 1) { track = false; return; } sx = e.touches[0].clientX; sy = e.touches[0].clientY; dx = 0; on = false; track = true; }, { passive: true });
+    inner.addEventListener('touchmove', e => {
+      if (!track) return;
+      const mx = e.touches[0].clientX - sx, my = e.touches[0].clientY - sy;
+      if (!on) {
+        if (Math.abs(my) > 14 && Math.abs(my) > Math.abs(mx)) { track = false; return; }
+        if (Math.abs(mx) > 12 && Math.sign(mx) === dir) on = true; else return;
+      }
+      dx = dir > 0 ? Math.max(0, mx) : Math.min(0, mx);
+      inner.style.transition = 'none';
+      inner.style.translate = dx + 'px 0';
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+    const end = () => {
+      if (!track) return;
+      track = false;
+      if (!on) return;
+      inner.style.transition = ''; inner.style.translate = '';
+      if (Math.abs(dx) > 70) closeDrawer();
+    };
+    inner.addEventListener('touchend', end);
+    inner.addEventListener('touchcancel', end);
+  }
+  // Deslizar hacia la derecha sobre la mitad izquierda de la lista abre el menú de la app.
+  function edgeSwipe(pane) {
+    let sx = 0, sy = 0, track = false;
+    pane.addEventListener('touchstart', e => {
+      track = false;
+      if (e.touches.length !== 1 || ui.sel) return;
+      const t = e.touches[0];
+      if (t.clientX > pane.getBoundingClientRect().left + pane.clientWidth * 0.45) return;
+      sx = t.clientX; sy = t.clientY; track = true;
+    }, { passive: true });
+    pane.addEventListener('touchmove', e => {
+      if (!track) return;
+      const mx = e.touches[0].clientX - sx, my = e.touches[0].clientY - sy;
+      if (Math.abs(my) > 24 && Math.abs(my) > Math.abs(mx)) { track = false; return; }
+      if (mx > 70 && mx > Math.abs(my) * 2) {
+        track = false;
+        longFired = true; setTimeout(() => { longFired = false; }, 400);
+        openDrawer('app');
+      }
+    }, { passive: true });
+    pane.addEventListener('touchend', () => { track = false; });
+  }
+
+  /* ---------- Tirar la lista hacia abajo para sincronizar ---------- */
+  function pullToSync(list) {
+    const ind = $('#ptr');
+    let sy = 0, dy = 0, on = false, track = false;
+    const reset = () => { ind.style.translate = ''; ind.style.rotate = ''; ind.classList.remove('show', 'ready'); };
+    list.addEventListener('touchstart', e => {
+      track = list.scrollTop <= 0 && e.touches.length === 1 && !ui.sel;
+      sy = e.touches[0].clientY; dy = 0; on = false;
+    }, { passive: true });
+    list.addEventListener('touchmove', e => {
+      if (!track) return;
+      dy = e.touches[0].clientY - sy;
+      if (!on) {
+        if (dy < -4 || list.scrollTop > 0) { track = false; return; }
+        if (dy > 12) on = true; else return;
+      }
+      const pull = Math.min(110, Math.max(0, dy - 12) * 0.5);
+      ind.classList.add('show');
+      ind.classList.toggle('ready', pull >= 48);
+      ind.style.translate = `-50% ${pull}px`;
+      ind.style.rotate = (pull * 4) + 'deg';
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+    const end = () => {
+      if (!track || !on) { track = false; return; }
+      track = false;
+      const ready = ind.classList.contains('ready');
+      reset();
+      if (!ready) return;
+      if (!driveConfigured()) { toast('La sincronización no está configurada.'); return; }
+      if (!driveOn()) { connectDialog(); return; }
+      syncBtnTap();
+    };
+    list.addEventListener('touchend', end);
+    list.addEventListener('touchcancel', () => { track = false; reset(); });
+  }
+
+  /* ---------- Barras del sistema con el color de la pantalla ---------- */
+  // La barra de notificaciones toma el color de lo que está arriba: lista, nota, bloqueo, o el fondo oscurecido de un diálogo.
+  const metaTheme = (() => {
+    document.querySelectorAll('meta[name="theme-color"]').forEach((m, i) => { if (i) m.remove(); });
+    const m = document.querySelector('meta[name="theme-color"]');
+    m.removeAttribute('media');
+    return m;
+  })();
+  function rgbOf(c) { const m = (c || '').match(/[\d.]+/g); return m ? m.slice(0, 3).map(Number) : [0, 0, 0]; }
+  function paintChrome() {
+    let el = $('#lock').hidden ? (document.body.classList.contains('show-editor') && narrow() ? $('#editor') : $('#sidebar')) : $('#lock');
+    if (!$('#app').hidden && !$('#lock').hidden) el = $('#lock');
+    let bg = getComputedStyle(el).backgroundColor;
+    if (!bg || bg === 'rgba(0, 0, 0, 0)') bg = getComputedStyle(document.body).backgroundColor;
+    let [r, g, b] = rgbOf(bg);
+    // Un diálogo o un menú abierto oscurece la pantalla: la barra también.
+    if ([...document.querySelectorAll('dialog')].some(d => d.open)) { const a = 0.45; r = r * (1 - a) + 10 * a; g = g * (1 - a) + 8 * a; b = b * (1 - a) + 5 * a; }
+    const hex = '#' + [r, g, b].map(x => Math.round(x).toString(16).padStart(2, '0')).join('');
+    if (metaTheme.content !== hex) metaTheme.content = hex;
+  }
+  const paintSoon = (() => { let t = 0; return () => { cancelAnimationFrame(t); t = requestAnimationFrame(paintChrome); }; })();
+  new MutationObserver(paintSoon).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open', 'class', 'hidden'] });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintSoon);
+  addEventListener('resize', paintSoon);
+  paintSoon();
 
   /* ---------- Exportar como texto para chat ---------- */
   const bump = (md, k) => md.replace(/^(#{1,6}) /gm, (m, x) => '#'.repeat(Math.min(6, x.length + k)) + ' ');
@@ -2825,14 +3016,15 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
     return ['idle', 'Conectado', 'Todavía no sincronizó desde que abriste la app. Tocá para sincronizar.' + last];
   }
   function renderSync() {
-    const el = document.getElementById('sync-btn');
-    if (!el) return;
-    el.hidden = !driveConfigured();
-    if (el.hidden) return;
-    const [st, name, why] = syncVisual();
-    el.dataset.state = st;
-    el.title = 'Drive: ' + name + '. ' + why;
-    el.setAttribute('aria-label', 'Google Drive: ' + name);
+    const el = document.getElementById('acct-btn');
+    if (el && S) {
+      if (!driveConfigured()) { el.dataset.state = ''; return; }
+      const [st, name, why] = syncVisual();
+      el.dataset.state = st;
+      el.title = `Tu cuenta: ${S.data.profile.name}. Drive: ${name}. ${why}`;
+    }
+    const line = document.getElementById('dr-sync');
+    if (line && driveConfigured()) { const [st, name, why] = syncVisual(); line.dataset.state = st; line.textContent = 'Drive: ' + name; line.title = why; }
   }
   setInterval(() => { if (G.state === 'ok') renderSync(); }, 30000);
 
