@@ -50,7 +50,7 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 
 - Arriba, una barra de búsqueda como la de Gmail: ☰ abre el menú de la app, el texto busca en notas y secciones, el ícono de ajustes abre los filtros (etiquetas, año o rango de fechas, notas con cierta sección) y el círculo con la inicial abre tu cuenta.
 - Menú de la app (☰, o deslizando hacia la derecha sobre la lista): nueva nota, .docx, importar, copiar o descargar como texto, categorías, tipografía, backups y borrar todo.
-- Tu cuenta (el círculo): sincronizar o conectar Drive, bloquear, cambiar de cuenta, huella, contraseña, crear o eliminar sesiones. El puntito del círculo es el estado de Drive: verde sincronizado, ámbar con cambios sin subir o para reconectar, rojo si falló, gris sin conexión.
+- Tu cuenta (el círculo): sincronizar o conectar Drive, bloquear, tiempo de bloqueo automático (de 1 minuto a 1 hora, por dispositivo), cambiar de cuenta, huella, contraseña de la sesión, cambiar el nombre de la cuenta, crear o eliminar sesiones. El puntito del círculo es el estado de Drive: verde sincronizado, ámbar con cambios sin subir o para reconectar, rojo si falló, gris sin conexión.
 - Tirar la lista hacia abajo sincroniza con Drive.
 - Las notas van separadas por una línea fina, con la fecha corta a la derecha y un rótulo de mes y año que queda pegado arriba al deslizar.
 - Botón + abajo a la derecha para una nota nueva. Toque largo en una nota para elegir varias y copiarlas, descargarlas o borrarlas juntas.

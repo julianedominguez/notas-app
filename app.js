@@ -1,7 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.8.0';
-  const LOCK_MS = 5 * 60 * 1000;
+  const APP_VERSION = '1.8.1';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -49,6 +48,7 @@
     tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.2V4.8c0-.7.6-1.3 1.3-1.3h7.4l8.3 8.3a1.3 1.3 0 0 1 0 1.8l-7.4 7.4a1.3 1.3 0 0 1-1.8 0z"/><circle cx="8.3" cy="8.3" r="1.4"/></svg>',
     type: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19l5-14 5 14M5.8 14.5h6.4"/><path d="M15.5 12.5c.5-1 1.5-1.5 2.6-1.5 1.6 0 2.4 1 2.4 2.4V19M20.5 15.5c-3.5 0-5 .6-5 2 0 1 .8 1.6 1.9 1.6 1.6 0 3.1-1.1 3.1-3"/></svg>',
     cloud2: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.2 18.5h9.9a3.9 3.9 0 0 0 .5-7.77A5.6 5.6 0 0 0 6.9 9.8a4.35 4.35 0 0 0 .3 8.7z"/></svg>',
+    pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
     note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h5M9 12h7M9 15.5h7"/></svg>'
   };
 
@@ -261,7 +261,15 @@
   let lastActive = Date.now();
   ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart', 'scroll'].forEach(ev =>
     addEventListener(ev, () => { lastActive = Date.now(); }, { passive: true, capture: true }));
-  function checkIdle() { if (S && Date.now() - lastActive > LOCK_MS) lock(); }
+  // Tiempo de bloqueo elegible, por dispositivo (minutos).
+  const LOCK_OPTS = [1, 2, 5, 10, 15, 30, 60];
+  function lockMin() {
+    let v = 5;
+    try { v = Number(localStorage.getItem('notas-app-lock-min')) || 5; } catch { /* sin almacenamiento */ }
+    return LOCK_OPTS.includes(v) ? v : 5;
+  }
+  const lockLabel = m => m === 60 ? '1 hora' : m === 1 ? '1 minuto' : `${m} minutos`;
+  function checkIdle() { if (S && Date.now() - lastActive > lockMin() * 60000) lock(); }
   setInterval(checkIdle, 10000);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) flush();
@@ -685,6 +693,51 @@
       h('p', { class: 'muted small', text: 'Para usar esta misma sesión en otro dispositivo, creala allá con el mismo nombre y conectá Drive: encuentra el archivo y te pide su contraseña.' })
     ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
     setTimeout(() => name.focus(), 50);
+  }
+
+  function lockTimeDialog() {
+    const d = $('#dlg');
+    const cur = lockMin();
+    const opts = LOCK_OPTS.map(m => h('button', { class: 'btn' + (m === cur ? ' on' : ''), 'aria-pressed': m === cur ? 'true' : 'false', onclick: () => {
+      try { localStorage.setItem('notas-app-lock-min', String(m)); } catch { /* sin almacenamiento */ }
+      lastActive = Date.now();
+      d.close();
+      toast('La app se bloquea tras ' + lockLabel(m) + ' sin uso.');
+    } }, (m === cur ? '✓ ' : '') + lockLabel(m)));
+    openDialog(d, 'Bloqueo automático', [
+      h('p', { class: 'muted small', text: 'Después de cuánto tiempo sin usarla se bloquea la app y pide la contraseña o la huella. Vale para este dispositivo.' }),
+      h('div', { class: 'menu' }, opts)
+    ], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
+  }
+
+  function renameDialog() {
+    const d = $('#dlg');
+    const old = S.data.profile.name;
+    const name = h('input', { type: 'text', value: old, autocomplete: 'off', maxlength: '40', 'aria-label': 'Nombre de la cuenta' });
+    const msg = h('p', { class: 'small', text: '' });
+    const ok = h('button', { class: 'btn primary', text: 'Guardar' });
+    const go = async () => {
+      const nm = name.value.trim().replace(/\s+/g, ' ');
+      msg.textContent = '';
+      if (!/[\p{L}\p{N}]/u.test(nm)) { msg.textContent = 'Poné un nombre con letras o números.'; return; }
+      if (nm === old) { d.close(); return; }
+      const list = await listSessions();
+      if (list.some(x => x.id !== S.sid && x.name && x.name.toLowerCase() === nm.toLowerCase())) { msg.textContent = 'Ya hay otra cuenta con ese nombre en este dispositivo.'; return; }
+      S.data.profile.name = nm;
+      await queueSave();
+      await saveSessions(list.map(x => x.id === S.sid ? Object.assign({}, x, { name: nm }) : x));
+      d.close();
+      buildSidebar(); renderList();
+      toast(`La cuenta ahora se llama "${nm}".`);
+    };
+    ok.addEventListener('click', go);
+    name.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    const file = S.data.profile.driveFile;
+    openDialog(d, 'Cambiar el nombre de la cuenta', [
+      name, msg,
+      h('p', { class: 'muted small', text: `Es el nombre que ves al elegir la cuenta y en la barra de búsqueda, en este dispositivo. Las notas, la contraseña y la huella no cambian. El archivo de Drive sigue siendo "${file}": para abrir esta cuenta en otro dispositivo, creala allá con el nombre que tenía al principio y después la podés renombrar.` })
+    ], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
+    setTimeout(() => { name.focus(); name.select(); }, 50);
   }
 
   function deleteSessionDialog() {
@@ -2084,7 +2137,7 @@
         drawerItem(I.upload, 'Restaurar backup encriptado', importBackup),
         Hd('Este dispositivo'),
         drawerItem(I.trash, S.multi ? 'Borrar todas las sesiones' : 'Borrar todo de este dispositivo', wipeDialog, 'danger'),
-        h('p', { class: 'dr-foot', text: `${liveNotes().length} notas en esta sesión · se bloquea tras 5 minutos sin uso` })
+        h('p', { class: 'dr-foot', text: `${liveNotes().length} notas en esta sesión · se bloquea tras ${lockLabel(lockMin())} sin uso` })
       ];
     } else {
       const conf = driveConfigured();
@@ -2099,8 +2152,10 @@
         S.multi ? drawerItem(I.users, 'Cambiar de cuenta', lock) : null,
         Hd('Seguridad'),
         S.bioOk || S.bioOn ? drawerItem(I.finger, S.bioOn ? 'Desactivar el ingreso con huella' : 'Activar el ingreso con huella', bioFromMenu) : null,
-        drawerItem(I.key, 'Cambiar contraseña', changePasswordDialog),
+        drawerItem(I.lock, 'Bloqueo automático: ' + lockLabel(lockMin()), lockTimeDialog),
+        drawerItem(I.key, 'Cambiar contraseña de la sesión', changePasswordDialog),
         Hd('Sesiones'),
+        drawerItem(I.pen, 'Cambiar el nombre de la cuenta', renameDialog),
         drawerItem(I.userplus, 'Crear otra sesión', newSessionDialog),
         conf && driveOn() ? drawerItem(I.unlink, 'Desconectar Google Drive', disconnectDrive) : null,
         S.multi ? drawerItem(I.trash, 'Eliminar esta sesión de este dispositivo', deleteSessionDialog, 'danger') : null
@@ -2705,7 +2760,9 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
       toast('Contraseña cambiada. Los backups viejos siguen abriéndose con la anterior.', 5000);
       if (hadBio) offerBio(raw, 'Cambiaste la contraseña, así que la huella se desactivó. ¿La volvés a activar?');
     });
-    openDialog(d, 'Cambiar contraseña', [cur, p1, p2, msg], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
+    openDialog(d, 'Cambiar contraseña de la sesión', [
+      h('p', { class: 'muted small', text: `Es la contraseña con la que entrás a "${S.data.profile.name}" y que encripta sus notas, en este dispositivo y en Drive. En los otros dispositivos te la va a pedir la próxima vez que sincronicen. Los backups que ya descargaste siguen abriéndose con la contraseña anterior; los nuevos usan la nueva.` }),
+      cur, p1, p2, msg], [h('button', { class: 'btn', text: 'Cancelar', onclick: () => d.close() }), ok]);
     setTimeout(() => cur.focus(), 50);
   }
 
