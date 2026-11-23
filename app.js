@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.9.1';
+  const APP_VERSION = '1.9.2';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -3179,7 +3179,12 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
       if (m && m.enabled && driveConfigured()) { loadGis().catch(() => {}); break; }
     }
     showLock();
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update().catch(() => {})).catch(() => {});
+      // Si llega una versión nueva mientras la app está bloqueada, se recarga sola (no se pierde nada: no hay nada abierto).
+      let had = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !S) location.reload(); had = true; });
+    }
   }
   boot();
 })();
