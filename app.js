@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.8.2';
+  const APP_VERSION = '1.9.0';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -2284,8 +2284,11 @@
     let bg = getComputedStyle(el).backgroundColor;
     if (!bg || bg === 'rgba(0, 0, 0, 0)') bg = getComputedStyle(document.body).backgroundColor;
     let [r, g, b] = rgbOf(bg);
-    // Un diálogo o un menú abierto oscurece la pantalla: la barra también.
-    if ([...document.querySelectorAll('dialog')].some(d => d.open)) { const a = 0.45; r = r * (1 - a) + 10 * a; g = g * (1 - a) + 8 * a; b = b * (1 - a) + 5 * a; }
+    // Con un menú lateral abierto, la barra toma el color del menú (así se ve de arriba a abajo, como en ChatGPT).
+    const dr = document.getElementById('drawer');
+    if (dr && dr.open && dr.classList.contains('in')) [r, g, b] = rgbOf(getComputedStyle(dr.firstChild || dr).backgroundColor);
+    // Un diálogo abierto oscurece la pantalla: la barra también.
+    else if ([...document.querySelectorAll('dialog')].some(d => d.open)) { const a = 0.45; r = r * (1 - a) + 10 * a; g = g * (1 - a) + 8 * a; b = b * (1 - a) + 5 * a; }
     const hex = '#' + [r, g, b].map(x => Math.round(x).toString(16).padStart(2, '0')).join('');
     if (metaTheme.content !== hex) metaTheme.content = hex;
   }
