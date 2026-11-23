@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.9.0';
+  const APP_VERSION = '1.9.1';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};

@@ -688,3 +688,6 @@ button, [data-tip] { -webkit-touch-callout: none; -webkit-user-select: none; use
 .month { background: var(--bg); }
 .item.active { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
 .dr-title { font-family: var(--sans); font-weight: 600; }
+/* 1.9.1: la cabecera de la nota usa el mismo fondo que la página (negro en oscuro), como ChatGPT */
+.ed-head, .ed-nav, .fmt-bar { background: var(--page); }
+.fmt-bar { border-top-color: var(--line); }
