@@ -734,3 +734,83 @@ body.focus-mode .app { grid-template-columns: minmax(0, 1fr); }
 .list { overflow-x: hidden; }
 .sel-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item-snip { overflow-wrap: anywhere; }
+
+/* 2.5.0: animaciones, primer paquete. Para sacarlas alcanza con borrar este bloque.
+   Buenas prácticas: duraciones cortas (150 a 300 ms), curvas de Material 3 (entrar desacelerando,
+   salir acelerando), solo transform y opacity, y nada si el sistema pide "Quitar animaciones"
+   o si se apagan en Apariencia (clase .calm). */
+:root {
+  --m-fast: 160ms; --m-med: 240ms; --m-slow: 300ms;
+  --ease-out: cubic-bezier(.05, .7, .1, 1);   /* M3 emphasized decelerate: lo que entra */
+  --ease-in: cubic-bezier(.3, 0, .8, .15);    /* M3 emphasized accelerate: lo que sale */
+  --ease-std: cubic-bezier(.2, 0, 0, 1);
+}
+/* Iconos del indicador de tirar para sincronizar: flechas y tilde superpuestos */
+.ptr > span { grid-area: 1 / 1; display: grid; place-items: center; }
+.ptr-ok { opacity: 0; color: var(--ok); }
+.ptr.busy .ptr-r svg { animation: spin .8s linear infinite; }
+.ptr.busy { color: var(--accent-text); }
+.ptr.done .ptr-r { opacity: 0; }
+.ptr.done .ptr-ok { opacity: 1; }
+.ptr .ck { stroke-dasharray: 1; stroke-dashoffset: 0; }
+/* Cuenta sincronizando: un aro girando alrededor del círculo */
+.avatar[data-state=sync]::before {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%;
+  border: 2px solid transparent; border-top-color: var(--accent-text); border-right-color: var(--accent-text);
+  animation: spin .9s linear infinite;
+}
+.avatar[data-state=sync] .av-dot { display: none; }
+.avatar.m-ok .av-dot {
+  width: 16px; height: 16px; right: -4px; bottom: -4px;
+  background: var(--ok) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4 4L18.5 7.5'/%3E%3C/svg%3E") center / 11px no-repeat;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Lista a nota y vuelta (eje horizontal compartido: corrimiento corto con fundido) */
+  html:not(.calm) .editor.m-fwd { animation: m-fwd var(--m-slow) var(--ease-out); }
+  html:not(.calm) .sidebar.m-back { animation: m-back var(--m-slow) var(--ease-out); }
+  @media (min-width: 820px) {
+    html:not(.calm) .editor.m-fwd { animation: m-fade var(--m-fast) var(--ease-std); }
+  }
+  /* Menús laterales: entran desacelerando, salen más rápido acelerando */
+  html:not(.calm) .drawer .dr-inner { transition: transform var(--m-fast) var(--ease-in), translate var(--m-fast) var(--ease-std); }
+  html:not(.calm) .drawer.in .dr-inner { transition: transform var(--m-slow) var(--ease-out), translate var(--m-med) var(--ease-std); }
+  html:not(.calm) .drawer::backdrop { transition: background var(--m-fast) linear; }
+  html:not(.calm) .drawer.in::backdrop { transition: background var(--m-med) linear; }
+  /* Diálogos: aparecen con una escala corta */
+  html:not(.calm) .dlg[open] { animation: m-dlg var(--m-med) var(--ease-out); }
+  html:not(.calm) .dlg[open]::backdrop { animation: m-fade var(--m-med) linear; }
+  /* Desbloqueo: el resaltador se pinta detrás de la Tn, y el error hace temblar la contraseña */
+  html:not(.calm) .lock .am-hl { animation: m-hl 560ms var(--ease-std) 140ms both; }
+  html:not(.calm) .lock-card { animation: m-up var(--m-slow) var(--ease-out); }
+  html:not(.calm) .m-shake { animation: m-shake 380ms var(--ease-std); }
+  html:not(.calm) .app.m-in { animation: m-fade var(--m-med) var(--ease-std); }
+  /* Sincronización: el tilde aparece con un pop y se dibuja; si falla, el círculo tiembla */
+  html:not(.calm) .avatar.m-ok .av-dot { animation: m-pop 420ms var(--ease-out); }
+  html:not(.calm) .avatar.m-err { animation: m-shake 380ms var(--ease-std); }
+  html:not(.calm) .ptr.done .ptr-ok svg { animation: m-pop 380ms var(--ease-out); }
+  html:not(.calm) .ptr.done .ck { animation: m-draw 320ms var(--ease-out) 60ms both; }
+  html:not(.calm) .ptr { transition: opacity var(--m-fast), color var(--m-fast); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Sin movimiento: solo fundidos cortos donde ayudan a entender el cambio */
+  .drawer .dr-inner, .drawer.in .dr-inner { transition: none; }
+  html:not(.calm) .editor.m-fwd, html:not(.calm) .sidebar.m-back, html:not(.calm) .app.m-in { animation: m-fade var(--m-fast) linear; }
+}
+html.calm .drawer .dr-inner, html.calm .drawer.in .dr-inner, html.calm .drawer::backdrop { transition: none; }
+html.calm .toast { transition: none; }
+
+@keyframes m-fwd { from { opacity: 0; transform: translateX(28px); } }
+@keyframes m-back { from { opacity: 0; transform: translateX(-28px); } }
+@keyframes m-fade { from { opacity: 0; } }
+@keyframes m-up { from { opacity: 0; transform: translateY(10px); } }
+@keyframes m-dlg { from { opacity: 0; transform: translateY(8px) scale(.97); } }
+@keyframes m-hl { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes m-pop { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes m-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes m-shake {
+  0%, 100% { transform: none; }
+  15% { transform: translateX(-8px); } 30% { transform: translateX(7px); }
+  45% { transform: translateX(-5px); } 60% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); } 90% { transform: translateX(1px); }
+}

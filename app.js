@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.4.1';
+  const APP_VERSION = '2.5.0';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -111,6 +111,18 @@
   const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
   function narrow() { return matchMedia('(max-width: 819px)').matches; }
+  // Animaciones: se aplican con una clase que se quita sola al terminar. El CSS decide si se ven
+  // (respeta "Quitar animaciones" del sistema y la opción de la app).
+  function play(el, cls) {
+    if (!el) return;
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+    const done = e => { if (e.target !== el) return; el.classList.remove(cls); el.removeEventListener('animationend', done); el.removeEventListener('animationcancel', done); };
+    el.addEventListener('animationend', done);
+    el.addEventListener('animationcancel', done);
+  }
+  function calm() { return document.documentElement.classList.contains('calm') || matchMedia('(prefers-reduced-motion: reduce)').matches; }
 
   let toastTimer;
   function toast(msg, ms = 3200) {
@@ -595,6 +607,8 @@
         if (!got) {
           msg.textContent = 'Contraseña incorrecta.';
           btn.disabled = false; btn.textContent = 'Desbloquear';
+          play(pw, 'm-shake');
+          if (!calm() && navigator.vibrate) try { navigator.vibrate(40); } catch { /* sin vibración */ }
           pw.select();
           return;
         }
@@ -929,6 +943,7 @@
     buildSidebar();
     renderList();
     showEmpty();
+    play($('#app'), 'm-in');
     driveAfterUnlock();
   }
 
@@ -941,7 +956,7 @@
     to.addEventListener('change', () => { ui.to = to.value; ui.year = ''; renderList(); });
     search.placeholder = 'Buscar en ' + (S.multi ? S.data.profile.name : 'tus notas');
     $('#sidebar').replaceChildren(
-      h('div', { class: 'ptr', id: 'ptr', 'aria-hidden': 'true', html: I.refresh }),
+      h('div', { class: 'ptr', id: 'ptr', 'aria-hidden': 'true', html: `<span class="ptr-r">${I.refresh}</span><span class="ptr-ok">${CHECK}</span>` }),
       h('div', { class: 'topbar', id: 'side-head' },
         h('div', { class: 'pill' },
           h('button', { class: 'pill-btn', id: 'menu-btn', type: 'button', title: 'Menú de la app', 'aria-label': 'Menú de la app', html: I.burger, onclick: () => openDrawer('app') }),
@@ -967,6 +982,7 @@
     pullToSync($('#list'));
     edgeSwipe($('#sidebar'));
   }
+  const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path class="ck" pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const initialOf = name => ((name || '').trim().charAt(0) || '·').toUpperCase();
 
   function toggleSearch() {
@@ -1177,6 +1193,7 @@
     document.documentElement.dataset.font = PREF.font;
     document.body.classList.toggle('focus-mode', !!PREF.focus);
     document.body.classList.toggle('center-on', !!PREF.center);
+    document.documentElement.classList.toggle('calm', PREF.motion === false);
   }
   applyPrefs();
   function readingDialog() {
@@ -1200,6 +1217,8 @@
       PREF.spell = sp.checked; savePrefs();
       document.querySelectorAll('.prose-ed').forEach(el => el.setAttribute('spellcheck', PREF.spell ? 'true' : 'false'));
     });
+    const mo = h('input', { type: 'checkbox', checked: PREF.motion !== false });
+    mo.addEventListener('change', () => { PREF.motion = mo.checked; savePrefs(); applyPrefs(); });
     openDialog(d, 'Apariencia y escritura', [
       h('div', { class: 'menu-h', text: 'Tipografía' }),
       fonts,
@@ -1212,6 +1231,10 @@
       h('label', { class: 'check' }, sp, h('span', null,
         h('span', { text: 'Subrayar errores de ortografía' }),
         h('span', { class: 'muted small block', text: 'En el celu conviene apagado: si está prendido, tocar una palabra subrayada abre las sugerencias y cierra el teclado. El teclado igual sigue corrigiendo.' }))),
+      h('div', { class: 'menu-h', text: 'Movimiento' }),
+      h('label', { class: 'check' }, mo, h('span', null,
+        h('span', { text: 'Animaciones' }),
+        h('span', { class: 'muted small block', text: 'Transiciones suaves al abrir notas y menús, al sincronizar y al desbloquear. Si el celu tiene activado "Quitar animaciones", se apagan igual.' }))),
       h('p', { class: 'muted small', text: 'Estas opciones se guardan en este dispositivo.' })
     ], [h('button', { class: 'btn', text: 'Listo', onclick: () => d.close() })]);
   }
@@ -1311,15 +1334,18 @@
       else history.replaceState({ note: id }, '');
     }
     $('#editor').scrollTop = 0;
+    if (prev !== id) play($('#editor'), 'm-fwd');
   }
   function closeEditor() {
     const prev = ui.current;
     destroyEditor();
     ui.current = null;
     if (prev) pruneNote(prev);
+    const wasOpen = document.body.classList.contains('show-editor');
     document.body.classList.remove('show-editor');
     showEmpty();
     renderList();
+    if (wasOpen && narrow()) play($('#sidebar'), 'm-back');
   }
   addEventListener('keydown', e => { if (e.key === 'Escape' && S && ui.sel && !$('#dlg').open && !$('#dlg2').open) endSelect(); });
   addEventListener('popstate', () => { if (S && ui.current && narrow()) closeEditor(); });
@@ -2289,14 +2315,40 @@
       if (!track || !on) { track = false; return; }
       track = false;
       const ready = ind.classList.contains('ready');
-      reset();
-      if (!ready) return;
-      if (!driveConfigured()) { toast('La sincronización no está configurada.'); return; }
-      if (!driveOn()) { connectDialog(); return; }
+      if (!ready) { reset(); return; }
+      if (!driveConfigured()) { reset(); toast('La sincronización no está configurada.'); return; }
+      if (!driveOn()) { reset(); connectDialog(); return; }
+      // El indicador queda girando hasta que termina y muestra el tilde.
+      ind.classList.remove('ready'); ind.classList.add('busy');
+      ind.style.rotate = ''; ind.style.translate = '-50% 48px';
+      ptr.seen = G.state === 'sync';
+      clearTimeout(ptr.t1); clearTimeout(ptr.t2);
+      ptr.t1 = setTimeout(() => { if (!ptr.seen) ptrFinish(false); }, 2000);
+      ptr.t2 = setTimeout(() => ptrFinish(false), 30000);
       syncBtnTap();
+      ptrTick();
     };
     list.addEventListener('touchend', end);
     list.addEventListener('touchcancel', () => { track = false; reset(); });
+  }
+
+  const ptr = { seen: false, t1: 0, t2: 0 };
+  function ptrTick() {
+    const ind = document.getElementById('ptr');
+    if (!ind || !ind.classList.contains('busy')) return;
+    if (G.state === 'sync') { ptr.seen = true; return; }
+    if (ptr.seen) ptrFinish(syncVisual()[0] === 'ok');
+  }
+  function ptrFinish(ok) {
+    const ind = document.getElementById('ptr');
+    clearTimeout(ptr.t1); clearTimeout(ptr.t2);
+    if (!ind || !ind.classList.contains('busy')) return;
+    ind.classList.remove('busy');
+    if (ok) ind.classList.add('done');
+    setTimeout(() => {
+      ind.classList.remove('show');
+      setTimeout(() => { if (!ind.classList.contains('show')) { ind.classList.remove('done'); ind.style.translate = ''; } }, 200);
+    }, ok ? 750 : 0);
   }
 
   /* ---------- Barras del sistema con el color de la pantalla ---------- */
@@ -3125,11 +3177,15 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
     if (el && S) {
       if (!driveConfigured()) { el.dataset.state = ''; return; }
       const [st, name, why] = syncVisual();
+      const was = el.dataset.state;
       el.dataset.state = st;
+      if (was === 'sync' && st === 'ok') play(el, 'm-ok');
+      else if (was === 'sync' && st === 'error') play(el, 'm-err');
       el.title = `Tu cuenta: ${S.data.profile.name}. Drive: ${name}. ${why}`;
     }
     const line = document.getElementById('dr-sync');
     if (line && driveConfigured()) { const [st, name, why] = syncVisual(); line.dataset.state = st; line.textContent = 'Drive: ' + name; line.title = why; }
+    ptrTick();
   }
   setInterval(() => { if (G.state === 'ok') renderSync(); }, 30000);
 
