@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.0.2';
+  const APP_VERSION = '2.1.0';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -28,7 +28,7 @@
     undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>',
     redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg>',
     outline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M8 11h12M8 16h12M4 11h.01M4 16h.01"/></svg>',
-    app: '<svg viewBox="0 0 64 64"><rect class="am-bg" width="64" height="64" rx="15"/><g transform="rotate(-6 32 32)"><path class="am-pg" d="M6 8h52v34L44 56H6z"/><path class="am-fd" d="M58 42H47a3 3 0 0 0-3 3v11z"/><text class="am-tx" x="30.5" y="38.5" text-anchor="middle" textLength="46" lengthAdjust="spacingAndGlyphs">TNote</text></g></svg>',
+    app: '<svg viewBox="0 0 64 64"><rect class="am-bg" width="64" height="64" rx="15"/><rect class="am-bk" x="10" y="9" width="45" height="45" rx="3.5" transform="rotate(9 32 32)"/><g transform="rotate(-5 32 32)"><rect class="am-pg" x="8" y="10" width="46" height="46" rx="3.5"/><g transform="translate(14.5 19)"><rect class="am-t" width="26" height="7" rx="3.5"/><rect class="am-t" x="9.5" width="7" height="28" rx="3.5"/><path class="am-n" d="M22.5 26V19.5a4.75 4.75 0 0 1 9.5 0V26"/></g></g></svg>',
     cloud: '<svg class="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7.2 18.5h9.9a3.9 3.9 0 0 0 .5-7.77A5.6 5.6 0 0 0 6.9 9.8a4.35 4.35 0 0 0 .3 8.7z"/></svg>',
     spin: '<svg class="i-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 0 1-13.1 5"/><path d="M4.5 12a7.5 7.5 0 0 1 13.1-5"/><path d="M17.8 3.6v3.6h-3.6M6.2 20.4v-3.6h3.6"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>',
