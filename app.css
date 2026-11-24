@@ -814,3 +814,62 @@ html.calm .toast { transition: none; }
   45% { transform: translateX(-5px); } 60% { transform: translateX(4px); }
   75% { transform: translateX(-2px); } 90% { transform: translateX(1px); }
 }
+
+/* 2.6.0: animaciones, segundo paquete (detalles). Para sacarlas alcanza con borrar este bloque. */
+/* Meses plegables */
+.month.fold {
+  display: flex; align-items: center; gap: 8px; width: 100%; border: 0; text-align: left; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.month.fold .m-l { flex: 1; min-width: 0; }
+.month.fold .m-c { font-weight: 400; font-size: 12px; color: var(--muted); opacity: 0; transition: opacity var(--m-fast); }
+.month.fold.closed .m-c { opacity: 1; }
+.month.fold .m-chev { display: grid; place-items: center; width: 18px; height: 18px; color: var(--muted); rotate: 90deg; transition: rotate var(--m-med) var(--ease-std); }
+.month.fold .m-chev svg { width: 15px; height: 15px; }
+.month.fold.closed .m-chev { rotate: 0deg; }
+.month.fold + .month.fold { padding-top: 10px; }
+/* Pestañas: una sola rayita que se desliza a la pestaña activa */
+.ed-tabs { position: relative; }
+.ed-tabs.has-ink .tab.on { border-bottom-color: transparent; }
+.tab-ink {
+  position: absolute; left: 0; bottom: 0; height: 2px; width: 0; border-radius: 2px;
+  background: var(--accent-text); pointer-events: none;
+  transition: translate var(--m-slow) var(--ease-out), width var(--m-slow) var(--ease-out);
+}
+.tab-ink.no-tr, .ed-tabs.dragging .tab-ink { transition: none; }
+.ed-tabs.dragging .tab-ink { opacity: 0; }
+/* Arrastre de secciones: la pestaña se levanta y queda por encima */
+.tab.drag { scale: 1.04; box-shadow: 0 6px 18px rgba(0, 0, 0, .22); z-index: 3; }
+/* Tareas: casilla propia con tilde que se pinta */
+.prose-ed ul[data-type=taskList] li > label input {
+  -webkit-appearance: none; appearance: none; position: relative; cursor: pointer;
+  width: 1.1em; height: 1.1em; border: 1.6px solid var(--muted); border-radius: .3em; background: transparent;
+  transition: background-color var(--m-fast), border-color var(--m-fast);
+}
+.prose-ed ul[data-type=taskList] li > label input:checked {
+  background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231a1a1a' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4 4L18.5 7.5'/%3E%3C/svg%3E") center / 80% no-repeat;
+  border-color: var(--accent);
+}
+.prose-ed ul[data-type=taskList] li > label input::before { content: ""; position: absolute; inset: 0; border-radius: .12em; background: var(--accent); transform: scaleX(0); transform-origin: right; }
+.prose-ed ul[data-type=taskList] li > div { transition: color var(--m-med); }
+/* Tirar para sincronizar: el indicador crece y el aro se completa con el dedo */
+.ptr { --p: 0; }
+.ptr.show:not(.busy):not(.done) { scale: calc(.6 + .4 * var(--p)); }
+.ptr-ring { grid-area: 1 / 1; width: 38px; height: 38px; rotate: -90deg; fill: none; stroke: var(--accent-text); stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--p)); opacity: .9; }
+.ptr.busy .ptr-ring, .ptr.done .ptr-ring { opacity: 0; }
+.ptr:not(.ready):not(.busy) .ptr-r { opacity: calc(.45 + .55 * var(--p)); }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Notas nuevas y filas que se borran */
+  html:not(.calm) .item.m-new { animation: m-new var(--m-slow) var(--ease-out); }
+  /* Rebote leve al tocar botones: se achica al apretar y vuelve con un pequeño rebote */
+  html:not(.calm) :is(.btn, .pill-btn, .fab, .avatar, .dr-item, .fb, .bio-btn) { transition: scale 260ms cubic-bezier(.34, 1.56, .64, 1); }
+  html:not(.calm) :is(.btn, .pill-btn, .fab, .avatar, .dr-item, .fb, .bio-btn):active:not(:disabled) { scale: .94; transition-duration: 90ms; transition-timing-function: var(--ease-std); }
+  html:not(.calm) .dr-item:active:not(:disabled) { scale: .98; }
+  /* Avisos: suben con desaceleración y se van rápido hacia abajo */
+  html:not(.calm) .toast { transform: translateX(-50%) translateY(18px) scale(.96); transition: opacity 150ms var(--ease-in), transform 150ms var(--ease-in); }
+  html:not(.calm) .toast.show { transform: translateX(-50%) translateY(0) scale(1); transition: opacity 180ms linear, transform var(--m-slow) var(--ease-out); }
+  /* El indicador de tirar acompaña al dedo sin retraso, y vuelve suave */
+  html:not(.calm) .ptr:not(.show) { transition: opacity var(--m-fast), scale var(--m-fast); }
+}
+@keyframes m-new { from { opacity: 0; transform: translateY(-8px); } }

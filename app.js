@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.5.0';
+  const APP_VERSION = '2.6.0';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -121,6 +121,25 @@
     const done = e => { if (e.target !== el) return; el.classList.remove(cls); el.removeEventListener('animationend', done); el.removeEventListener('animationcancel', done); };
     el.addEventListener('animationend', done);
     el.addEventListener('animationcancel', done);
+  }
+  // Filas que se cierran (al borrar o plegar un mes) y que se abren (al desplegar).
+  function collapse(els) {
+    els = els.filter(Boolean);
+    if (calm() || !els.length) return Promise.resolve();
+    return Promise.all(els.map(el => {
+      const hgt = el.offsetHeight;
+      el.style.overflow = 'hidden';
+      return el.animate([{ height: hgt + 'px', opacity: 1 }, { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px' }],
+        { duration: 220, easing: 'cubic-bezier(.3, 0, .8, .15)', fill: 'forwards' }).finished.catch(() => {});
+    }));
+  }
+  function expand(els) {
+    if (calm()) return;
+    for (const el of els) {
+      const hgt = el.offsetHeight;
+      el.animate([{ height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', overflow: 'hidden' }, { height: hgt + 'px', opacity: 1, overflow: 'hidden' }],
+        { duration: 260, easing: 'cubic-bezier(.05, .7, .1, 1)' });
+    }
   }
   function calm() { return document.documentElement.classList.contains('calm') || matchMedia('(prefers-reduced-motion: reduce)').matches; }
 
@@ -243,7 +262,7 @@
 
   /* ---------- Sesión ---------- */
   let S = null; // { sid, key, salt, iter, data: { v, notes, cats, profile } }
-  const ui = { query: '', tags: new Set(), year: '', from: '', to: '', cats: new Set(), rangeOpen: false, searchOpen: false, sel: null, current: null };
+  const ui = { query: '', tags: new Set(), year: '', from: '', to: '', cats: new Set(), rangeOpen: false, searchOpen: false, sel: null, current: null, fold: new Set() };
 
   let saveTimer = null;
   let saveChain = Promise.resolve();
@@ -940,6 +959,8 @@
     $('#app').hidden = false;
     lastActive = Date.now();
     sweepEmpty();
+    loadFold();
+    listSeen = null;
     buildSidebar();
     renderList();
     showEmpty();
@@ -956,7 +977,7 @@
     to.addEventListener('change', () => { ui.to = to.value; ui.year = ''; renderList(); });
     search.placeholder = 'Buscar en ' + (S.multi ? S.data.profile.name : 'tus notas');
     $('#sidebar').replaceChildren(
-      h('div', { class: 'ptr', id: 'ptr', 'aria-hidden': 'true', html: `<span class="ptr-r">${I.refresh}</span><span class="ptr-ok">${CHECK}</span>` }),
+      h('div', { class: 'ptr', id: 'ptr', 'aria-hidden': 'true', html: `<svg class="ptr-ring" viewBox="0 0 38 38"><circle cx="19" cy="19" r="16.5" pathLength="1"/></svg><span class="ptr-r">${I.refresh}</span><span class="ptr-ok">${CHECK}</span>` }),
       h('div', { class: 'topbar', id: 'side-head' },
         h('div', { class: 'pill' },
           h('button', { class: 'pill-btn', id: 'menu-btn', type: 'button', title: 'Menú de la app', 'aria-label': 'Menú de la app', html: I.burger, onclick: () => openDrawer('app') }),
@@ -1088,6 +1109,7 @@
     const ids = [...ui.sel].filter(id => getNote(id));
     if (!ids.length) return;
     if (!(await confirmBox(ids.length === 1 ? '¿Eliminar la nota elegida? No se puede deshacer.' : `¿Eliminar las ${ids.length} notas elegidas? No se puede deshacer.`, 'Eliminar', true))) return;
+    await collapse(rowsOf(ids));
     if (ui.current && ids.includes(ui.current)) {
       if (ED) ED.dirty = false;
       destroyEditor();
@@ -1121,9 +1143,30 @@
     }
     const rows = [];
     let lastMonth = null;
+    // Meses plegables: solo sin búsqueda ni filtros, para que un resultado nunca quede escondido.
+    const canFold = !filterActive() && !ui.sel;
+    const perMonth = new Map();
+    for (const n of notes) { const k = validISO(n.date || '') ? n.date.slice(0, 7) : ''; perMonth.set(k, (perMonth.get(k) || 0) + 1); }
+    // Notas que aparecen desde la última vez (creadas o bajadas de Drive) entran con una animación.
+    const fkey = S.sid + '|' + JSON.stringify([ui.query, [...ui.tags], ui.year, ui.from, ui.to, [...ui.cats]]);
+    // En el celu, con una nota abierta la lista no se ve: la animación espera a que se vuelva a ella.
+    const hiddenList = narrow() && !!ui.current;
+    const fresh = !hiddenList && listSeen && listSeen.key === fkey ? notes.filter(n => !listSeen.ids.has(n.id)).map(n => n.id) : [];
+    if (!hiddenList) listSeen = { key: fkey, ids: new Set(notes.map(n => n.id)) };
     for (const n of notes) {
       const mk = validISO(n.date || '') ? n.date.slice(0, 7) : '';
-      if (mk !== lastMonth) { lastMonth = mk; rows.push(h('div', { class: 'month', text: monthLabel(mk) })); }
+      const folded = canFold && ui.fold.has(mk);
+      if (mk !== lastMonth) {
+        lastMonth = mk;
+        const c = perMonth.get(mk);
+        rows.push(canFold
+          ? h('button', { class: 'month fold' + (folded ? ' closed' : ''), type: 'button', 'aria-expanded': folded ? 'false' : 'true', 'data-m': mk, title: folded ? 'Mostrar las notas de este mes' : 'Plegar este mes', onclick: () => toggleMonth(mk) },
+            h('span', { class: 'm-l', text: monthLabel(mk) }),
+            h('span', { class: 'm-c', text: c === 1 ? '1 nota' : `${c} notas` }),
+            h('span', { class: 'm-chev', html: I.chev }))
+          : h('div', { class: 'month', text: monthLabel(mk) }));
+      }
+      if (folded) continue;
       const trs = (n.transcripts || []).length;
       const allTr = (n.transcripts || []).every(t => catOf(t) === TR);
       const snip = plainSnippet(n.text).slice(0, 160);
@@ -1131,6 +1174,7 @@
       const picked = !!(ui.sel && ui.sel.has(n.id));
       const el = h('button', {
         class: 'item' + (n.id === ui.current && !ui.sel ? ' active' : '') + (picked ? ' picked' : ''),
+        'data-id': n.id, 'data-m': mk,
         'aria-pressed': ui.sel ? (picked ? 'true' : 'false') : null,
         onclick: () => {
           if (longFired) { longFired = false; return; }
@@ -1151,6 +1195,24 @@
       rows.push(el);
     }
     list.replaceChildren(...rows);
+    if (fresh.length && fresh.length <= 5) for (const id of fresh) play(list.querySelector(`.item[data-id="${CSS.escape(id)}"]`), 'm-new');
+  }
+  let listSeen = null;
+  const rowsOf = ids => ids.map(id => document.querySelector(`#list .item[data-id="${CSS.escape(id)}"]`));
+  function foldKey() { return 'notas-app-fold:' + S.sid; }
+  function loadFold() { try { ui.fold = new Set(JSON.parse(localStorage.getItem(foldKey()) || '[]')); } catch { ui.fold = new Set(); } }
+  function saveFold() { try { localStorage.setItem(foldKey(), JSON.stringify([...ui.fold])); } catch { /* sin almacenamiento */ } }
+  async function toggleMonth(mk) {
+    const sel = `#list .item[data-m="${CSS.escape(mk)}"]`;
+    if (ui.fold.has(mk)) {
+      ui.fold.delete(mk); saveFold(); renderList();
+      expand([...document.querySelectorAll(sel)]);
+    } else {
+      const head = document.querySelector(`#list .month[data-m="${CSS.escape(mk)}"]`);
+      if (head) { head.classList.add('closed'); head.setAttribute('aria-expanded', 'false'); }
+      await collapse([...document.querySelectorAll(sel)]);
+      ui.fold.add(mk); saveFold(); renderList();
+    }
   }
   const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   function monthLabel(ym) {
@@ -1347,6 +1409,13 @@
     renderList();
     if (wasOpen && narrow()) play($('#sidebar'), 'm-back');
   }
+  document.addEventListener('change', e => {
+    const t = e.target;
+    // Con animate() y no con clases: tocar los atributos de la casilla hace que el editor la vuelva a dibujar.
+    if (!t || !t.matches || !t.matches('ul[data-type=taskList] input[type=checkbox]') || !t.checked || calm()) return;
+    t.animate([{ scale: 1 }, { scale: .82, offset: .4 }, { scale: 1.12, offset: .75 }, { scale: 1 }], { duration: 300, easing: 'cubic-bezier(.05, .7, .1, 1)' });
+    try { t.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: 260, delay: 40, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards', pseudoElement: '::before' }); } catch { /* sin seudoelementos: el tilde aparece directo */ }
+  }, true);
   addEventListener('keydown', e => { if (e.key === 'Escape' && S && ui.sel && !$('#dlg').open && !$('#dlg2').open) endSelect(); });
   addEventListener('popstate', () => { if (S && ui.current && narrow()) closeEditor(); });
   function goBack() {
@@ -1358,6 +1427,8 @@
 
 
   function switchTab(n, tab) {
+    const old = document.querySelector('.ed-tabs .tab.on');
+    inkFrom = old ? [old.offsetLeft, old.offsetWidth] : null;
     commitEditor();
     if (view.tab !== 'nota') {
       const t = n.transcripts.find(x => x.id === view.tab);
@@ -1493,8 +1564,29 @@
       tabs.append(b);
     });
     tabs.append(h('button', { class: 'tab add', title: 'Agregar una sección', onclick: () => pickSection(n) }, '+ Sección'));
+    tabs.append(h('span', { class: 'tab-ink', 'aria-hidden': 'true' }));
+    tabs.classList.add('has-ink');
     if (n.transcripts.length > 1) dragTabs(n, tabs);
+    requestAnimationFrame(() => placeInk(tabs));
+    // Si cambia el ancho (letra que termina de cargar, rotar el celu), la rayita se acomoda sin animación. El primer aviso es el de entrada y se ignora.
+    if (window.ResizeObserver) { let first = true; new ResizeObserver(() => { if (first) { first = false; return; } placeInk(tabs, true); }).observe(tabs); }
     return tabs;
+  }
+  // La rayita de la pestaña activa se desliza desde la pestaña anterior.
+  let inkFrom = null;
+  function placeInk(tabs, still) {
+    const ink = tabs.querySelector('.tab-ink'), on = tabs.querySelector('.tab.on');
+    if (!ink || !tabs.isConnected) return;
+    if (!on) { ink.hidden = true; return; }
+    ink.hidden = false;
+    const set = (x, w) => { ink.style.translate = x + 'px 0'; ink.style.width = w + 'px'; };
+    if (still || (!inkFrom && !ink.style.width) || calm()) {
+      ink.classList.add('no-tr'); set(on.offsetLeft, on.offsetWidth); void ink.offsetWidth; ink.classList.remove('no-tr');
+      inkFrom = null;
+      return;
+    }
+    if (inkFrom) { ink.classList.add('no-tr'); set(...inkFrom); void ink.offsetWidth; ink.classList.remove('no-tr'); inkFrom = null; }
+    set(on.offsetLeft, on.offsetWidth);
   }
 
   /* ---------- Reordenar secciones: toque largo y arrastre (con mouse, arrastrar directo) ---------- */
@@ -1505,6 +1597,7 @@
     const secs = () => [...tabs.querySelectorAll('.tab.sec')];
     function start() {
       st.on = true;
+      st.off = st.sx - st.el.getBoundingClientRect().left;
       if (navigator.vibrate) navigator.vibrate(15);
       tabs.classList.add('dragging');
       st.el.classList.add('drag');
@@ -1518,7 +1611,15 @@
       let before = null;
       for (const o of others) { const r = o.getBoundingClientRect(); if (x < r.left + r.width / 2) { before = o; break; } }
       const ref = before || tabs.querySelector('.tab.add');
-      if (el.nextElementSibling !== ref) tabs.insertBefore(el, ref);
+      if (el.nextElementSibling !== ref) {
+        // Los vecinos se corren con una animación para abrir el hueco.
+        const was = new Map(others.map(o => [o, o.offsetLeft]));
+        tabs.insertBefore(el, ref);
+        if (!calm()) for (const [o, x0] of was) { const d = x0 - o.offsetLeft; if (d) o.animate([{ transform: `translateX(${d}px)` }, { transform: 'none' }], { duration: 200, easing: 'cubic-bezier(.2, 0, 0, 1)' }); }
+      }
+      // La pestaña levantada sigue al dedo.
+      el.style.translate = '';
+      el.style.translate = (x - st.off - el.getBoundingClientRect().left) + 'px 0';
       // Desplaza la fila si el dedo llega a un borde.
       const r = tabs.getBoundingClientRect();
       if (!st.raf) st.raf = requestAnimationFrame(function edge() {
@@ -1534,7 +1635,11 @@
       const was = st.on;
       if (was) {
         tabDragEnd = Date.now();
+        const cur = parseFloat(st.el.style.translate) || 0;
+        st.el.style.translate = '';
+        if (cur && !calm()) st.el.animate([{ translate: cur + 'px 0' }, { translate: '0px 0' }], { duration: 200, easing: 'cubic-bezier(.2, 0, 0, 1)' });
         st.el.classList.remove('drag');
+        placeInk(tabs, true);
         tabs.classList.remove('dragging');
         if (commit) {
           const order = secs().map(o => o.dataset.sid);
@@ -1902,11 +2007,16 @@
   async function deleteNote(n) {
     if (!(await confirmBox(`¿Eliminar "${n.title || 'Sin título'}"? No se puede deshacer.`, 'Eliminar', true))) return;
     if (ED && ED.note === n) { ED.dirty = false; destroyEditor(); }
-    const idx = S.data.notes.indexOf(n);
-    S.data.notes[idx] = { id: n.id, deleted: true, updatedAt: Date.now() };
+    // Primero se vuelve a la lista y la fila se cierra; después se borra.
+    const back = history.state && history.state.note && narrow();
+    closeEditor();
+    if (back) history.back();
+    await new Promise(r => setTimeout(r, calm() ? 0 : 140));
+    await collapse(rowsOf([n.id]));
+    const idx = S.data.notes.findIndex(x => x.id === n.id);
+    if (idx >= 0 && !S.data.notes[idx].deleted) S.data.notes[idx] = { id: n.id, deleted: true, updatedAt: Date.now() };
     scheduleSave();
-    if (history.state && history.state.note && narrow()) history.back();
-    else closeEditor();
+    renderList();
     toast('Nota eliminada.');
   }
 
@@ -2292,7 +2402,8 @@
   function pullToSync(list) {
     const ind = $('#ptr');
     let sy = 0, dy = 0, on = false, track = false;
-    const reset = () => { ind.style.translate = ''; ind.style.rotate = ''; ind.classList.remove('show', 'ready'); };
+    const arrow = () => ind.querySelector('.ptr-r');
+    const reset = () => { ind.style.translate = ''; ind.style.removeProperty('--p'); arrow().style.rotate = ''; ind.classList.remove('show', 'ready'); };
     list.addEventListener('touchstart', e => {
       track = list.scrollTop <= 0 && e.touches.length === 1 && !ui.sel;
       sy = e.touches[0].clientY; dy = 0; on = false;
@@ -2308,7 +2419,9 @@
       ind.classList.add('show');
       ind.classList.toggle('ready', pull >= 48);
       ind.style.translate = `-50% ${pull}px`;
-      ind.style.rotate = (pull * 4) + 'deg';
+      // Se estira con el dedo: crece, se completa el aro y gira la flecha.
+      ind.style.setProperty('--p', Math.min(1, pull / 48).toFixed(3));
+      arrow().style.rotate = (pull * 4) + 'deg';
       if (e.cancelable) e.preventDefault();
     }, { passive: false });
     const end = () => {
@@ -2320,7 +2433,7 @@
       if (!driveOn()) { reset(); connectDialog(); return; }
       // El indicador queda girando hasta que termina y muestra el tilde.
       ind.classList.remove('ready'); ind.classList.add('busy');
-      ind.style.rotate = ''; ind.style.translate = '-50% 48px';
+      arrow().style.rotate = ''; ind.style.removeProperty('--p'); ind.style.translate = '-50% 48px';
       ptr.seen = G.state === 'sync';
       clearTimeout(ptr.t1); clearTimeout(ptr.t2);
       ptr.t1 = setTimeout(() => { if (!ptr.seen) ptrFinish(false); }, 2000);
