@@ -1,4 +1,4 @@
-# notas-app
+# TNote (antes notas-app)
 
 App web personal de notas que funciona sin conexión. Las notas se guardan encriptadas en el dispositivo y nunca pasan por este repositorio ni por ningún servidor.
 

@@ -1,6 +1,6 @@
 {
-  "name": "notas-app",
-  "short_name": "notas-app",
+  "name": "TNote",
+  "short_name": "TNote",
   "description": "Notas personales encriptadas, sin conexión.",
   "lang": "es",
   "start_url": "./",

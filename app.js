@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.9.4';
+  const APP_VERSION = '2.0.0';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -28,7 +28,7 @@
     undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg>',
     redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg>',
     outline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M8 11h12M8 16h12M4 11h.01M4 16h.01"/></svg>',
-    app: '<svg viewBox="0 0 24 24"><rect class="am-bg" x="1" y="1" width="22" height="22" rx="6.5"/><rect class="am-pg" x="7.2" y="5.2" width="9.6" height="13.6" rx="1.3"/><path class="am-ln" d="M9.6 9.6h4.8M9.6 12h4.8M9.6 14.4h3.2"/></svg>',
+    app: '<svg viewBox="0 0 64 64"><path class="am-bg" d="M15 0h28l21 21v28a15 15 0 0 1-15 15H15A15 15 0 0 1 0 49V15A15 15 0 0 1 15 0z"/><path class="am-fd" d="M43 0v12a9 9 0 0 0 9 9h12z"/><rect class="am-pg" x="11" y="18" width="29" height="7" rx="3.5"/><rect class="am-pg" x="22" y="18" width="7" height="30" rx="3.5"/><path class="am-n" d="M35.5 46V40.5a4.25 4.25 0 0 1 8.5 0V46"/></svg>',
     cloud: '<svg class="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7.2 18.5h9.9a3.9 3.9 0 0 0 .5-7.77A5.6 5.6 0 0 0 6.9 9.8a4.35 4.35 0 0 0 .3 8.7z"/></svg>',
     spin: '<svg class="i-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 0 1-13.1 5"/><path d="M4.5 12a7.5 7.5 0 0 1 13.1-5"/><path d="M17.8 3.6v3.6h-3.6M6.2 20.4v-3.6h3.6"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>',
@@ -522,7 +522,7 @@
     root.hidden = false;
     const sessions = await listSessions();
     const msg = h('p', { class: 'msg' });
-    const card = h('div', { class: 'lock-card' }, h('div', { class: 'lock-mark', html: I.lock }));
+    const card = h('div', { class: 'lock-card' }, h('div', { class: 'lock-mark brand-mark', html: I.app }));
 
     if (!sessions.length) {
       const p1 = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Contraseña nueva', 'aria-label': 'Contraseña nueva' });
@@ -570,7 +570,7 @@
         bios.has(x.id) && canBio ? h('span', { class: 'acct-bio', html: I.finger, title: 'Huella activada' }) : null,
         h('span', { class: 'acct-go', html: I.chev })));
       card.replaceChildren(h('div', { class: 'lock-mark brand-mark', html: I.app }),
-        h('h1', { text: 'notas-app' }), h('p', { text: 'Elegí la cuenta.' }),
+        h('h1', { text: 'TNote' }), h('p', { text: 'Elegí la cuenta.' }),
         h('div', { class: 'accts' }, items),
         h('button', { class: 'linklike', type: 'button', text: '¿Olvidaste la contraseña?', onclick: forgotDialog }));
       root.replaceChildren(card);
@@ -622,8 +622,8 @@
     };
     const fp = hasBio ? h('button', { class: 'bio-btn', type: 'button', 'aria-label': 'Entrar con huella', onclick: () => tryBio(false) },
       h('span', { class: 'bio-ic', html: I.finger }), h('span', { class: 'bio-t', text: 'Entrar con huella' })) : null;
-    card.replaceChildren(...[h('div', { class: 'lock-mark', html: I.lock }),
-      h('h1', { text: multi ? sessLabel(chosen) : 'notas-app' }),
+    card.replaceChildren(...[h('div', { class: 'lock-mark brand-mark', html: I.app }),
+      h('h1', { text: multi ? sessLabel(chosen) : 'TNote' }),
       h('p', { text: hasBio ? 'Ingresá tu contraseña o usá la huella.' : 'Ingresá tu contraseña.' }),
       form,
       fp ? h('div', { class: 'bio-or' }, h('span', { text: 'o' })) : null,
@@ -2156,7 +2156,7 @@
       body = [
         h('div', { class: 'dr-head' },
           h('span', { class: 'app-mark', html: I.app }),
-          h('div', { class: 'dr-title', text: 'notas-app' })),
+          h('div', { class: 'dr-title', text: 'TNote' })),
         Hd('Notas'),
         drawerItem(I.copy, 'Copiar o descargar notas como texto', () => exportDialog(null)),
         drawerItem(I.docx, 'Nueva nota desde un archivo .docx', newNoteFromDocx),
@@ -2167,7 +2167,7 @@
         Hd('Respaldo'),
         drawerItem(I.download, 'Descargar backup encriptado', exportBackup),
         drawerItem(I.upload, 'Restaurar backup encriptado', importBackup),
-        h('p', { class: 'dr-foot', text: `notas-app ${APP_VERSION} · ${liveNotes().length} notas en esta cuenta` })
+        h('p', { class: 'dr-foot', text: `TNote ${APP_VERSION} · ${liveNotes().length} notas en esta cuenta` })
       ];
     } else {
       const conf = driveConfigured();
