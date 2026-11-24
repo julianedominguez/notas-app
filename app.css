@@ -873,3 +873,156 @@ html.calm .toast { transition: none; }
   html:not(.calm) .ptr:not(.show) { transition: opacity var(--m-fast), scale var(--m-fast); }
 }
 @keyframes m-new { from { opacity: 0; transform: translateY(-8px); } }
+
+/* 2.7.0: pulido de detalles (buscador, selección, sincronizar, menús, entrada a la nota, barra de formato en Android).
+   Para volver a la 2.6.0 alcanza con revertir el commit. */
+:root { --sync-blue: #2f62ea; }
+@media (prefers-color-scheme: dark) { :root { --sync-blue: #3566f0; } }
+
+/* Buscador: borde amarillo bien visible mientras se escribe (no al tocar sus botones) */
+.pill:focus-within { box-shadow: none; }
+.pill:has(input[type=search]:focus), .pill:has(input[type=search]:focus):focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.pill .search-btn[aria-expanded=true] { background: var(--accent-soft); color: var(--ink); }
+html:not(.calm) .pill { transition: border-color var(--m-fast), box-shadow var(--m-fast); }
+
+/* Panel de filtros: una tarjeta debajo del buscador, con chips tipo Material */
+.search-panel {
+  margin: 2px 10px 10px; padding: 14px 14px 10px; gap: 14px;
+  background: var(--card); border: 1px solid var(--card-line); border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 18px rgba(0, 0, 0, .06);
+  transform-origin: top center;
+}
+@media (prefers-color-scheme: dark) { .search-panel { box-shadow: none; } }
+.f-label { font: 600 11.5px/1 var(--sans); color: var(--muted); text-transform: none; letter-spacing: .01em; }
+.chips { gap: 8px; }
+.chip {
+  height: 34px; padding: 0 12px; gap: 6px; font-size: 13.5px; color: var(--ink);
+  background: transparent; border: 1px solid var(--card-line); border-radius: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (prefers-color-scheme: dark) { .chip { border-color: #3a3a3a; } }
+.chip:hover { background: var(--surface-2); }
+.chip.on { background: var(--accent-soft); border-color: transparent; color: var(--ink); font-weight: 600; }
+.chip-ck { display: none; width: 16px; height: 16px; margin-left: -3px; color: var(--accent-text); }
+.chip-ck svg { width: 16px; height: 16px; display: block; }
+.chip.on .chip-ck { display: inline-grid; }
+@media (prefers-color-scheme: light) { .chip.on .chip-ck { color: var(--ink); } }
+.chip-n { font-size: 12px; color: var(--muted); font-weight: 400; }
+.f-range { gap: 10px; }
+.f-range input[type=date] { border-radius: 10px; }
+.f-foot { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-line); padding-top: 10px; margin-top: -2px; }
+.f-foot .btn.small { min-height: 34px; border-radius: 999px; padding: 0 16px; }
+.filter-line { margin: 0 10px 8px; border-radius: 999px; padding: 4px 4px 4px 14px; min-height: 36px; }
+.filter-line .x { border-radius: 50%; width: 30px; height: 30px; display: grid; place-items: center; }
+
+/* Selección: la barra se apoya sobre la de búsqueda con el mismo alto, nada se corre */
+.sidebar.selecting > .topbar { visibility: hidden; }
+.sel-bar {
+  position: absolute; z-index: 5; left: 10px; right: 10px; top: calc(env(safe-area-inset-top) + 8px);
+  height: 46px; padding: 0 4px; gap: 2px; border-radius: 999px;
+  background: var(--accent-soft); border: 1px solid var(--accent);
+}
+.sel-bar[hidden] { display: none; }
+.sel-bar .pill-btn { color: var(--ink); }
+.sel-bar .sel-n { padding-left: 2px; }
+.sel-bar .btn.ghost { border-radius: 999px; }
+.fab { transition: scale 200ms var(--ease-out), opacity 160ms linear; }
+.fab.away { scale: 0; opacity: 0; pointer-events: none; transition: scale 160ms var(--ease-in), opacity 120ms linear; }
+/* Los círculos de selección quedan centrados en el alto de cada nota */
+.list.selecting .item::before { top: 50%; margin-top: -10px; }
+.list.selecting .item.picked::after { top: 50%; margin-top: -7px; }
+.list.selecting .month.fold { cursor: pointer; }
+html:not(.calm) .list .item::before, html:not(.calm) .list .item::after { transition: background-color var(--m-fast), border-color var(--m-fast); }
+
+/* Tirar para sincronizar: círculo blanco con sombra y un arco que crece (estilo Google) */
+.ptr {
+  width: 40px; height: 40px; top: calc(env(safe-area-inset-top) + 8px);
+  background: var(--card); color: var(--sync-blue);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .22), 0 3px 10px rgba(0, 0, 0, .12);
+}
+@media (prefers-color-scheme: dark) { .ptr { background: #2a2a2a; box-shadow: 0 1px 3px rgba(0, 0, 0, .6), 0 3px 10px rgba(0, 0, 0, .5); } }
+.ptr.show:not(.busy):not(.done):not(.out) { scale: calc(.4 + .6 * var(--p)); }
+.ptr-ring {
+  width: 40px; height: 40px; fill: none; stroke: var(--sync-blue); stroke-width: 2.8; stroke-linecap: round;
+  stroke-dasharray: calc(.08 + .72 * var(--p)) 1; stroke-dashoffset: 0;
+  rotate: calc(var(--p) * 290deg - 90deg); opacity: calc(.35 + .65 * var(--p));
+}
+.ptr.ready .ptr-ring { opacity: 1; }
+.ptr.busy .ptr-ring { opacity: 1; stroke-dasharray: .72 1; rotate: 200deg; animation: spin .75s linear infinite; }
+.ptr.done .ptr-ring { opacity: 1; }
+.ptr.out { opacity: 0; scale: .2; }
+html:not(.calm) .ptr.out { transition: opacity 200ms linear, scale 200ms var(--ease-in); }
+html:not(.calm) .ptr:not(.show) { transition: opacity 160ms, scale 160ms; }
+@media (prefers-reduced-motion: reduce) { .ptr.busy .ptr-ring { animation: none; } }
+
+/* Círculo de la cuenta sincronizando: aro azul que gira */
+.avatar[data-state=sync]::before {
+  inset: -4px; border-width: 2.5px;
+  border-color: var(--sync-blue) var(--sync-blue) var(--sync-blue) transparent;
+  animation: spin .8s linear infinite;
+}
+
+/* Menús laterales: siguen al dedo, el fondo se aclara con el arrastre */
+.drawer.in::backdrop { background: rgba(0, 0, 0, calc(.55 * var(--dr-p, 1))); }
+.drawer.dragging::backdrop { transition: none !important; }
+.drawer .dr-inner { touch-action: pan-y; will-change: translate; }
+
+/* Entrada a la nota: se mueve el contenido, no el contenedor, y sin barras de desplazamiento */
+.app, .editor { overflow-x: clip; }
+.no-sb { scrollbar-width: none; }
+.no-sb::-webkit-scrollbar, .no-sb .list::-webkit-scrollbar { display: none; }
+.no-sb .list { scrollbar-width: none; }
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.calm) .editor > .m-fwd { animation: m-fwd var(--m-slow) var(--ease-out); }
+  html:not(.calm) .editor > .m-fresh { animation: m-fade 180ms var(--ease-std); }
+  /* Panel y línea de filtros, chips, selección, barra de formato */
+  html:not(.calm) .m-drop { animation: m-drop 220ms var(--ease-out); }
+  html:not(.calm) .chip.m-chip { animation: m-chip 220ms var(--ease-out); }
+  html:not(.calm) .chip.on.m-chip .chip-ck { animation: m-pop 260ms var(--ease-out); }
+  html:not(.calm) .m-sel { animation: m-sel 200ms var(--ease-out); }
+  html:not(.calm) .list.sel-in .item { animation: sel-pad-in 220ms var(--ease-out); }
+  html:not(.calm) .list.sel-in .item::before { animation: sel-dot-in 240ms var(--ease-out); }
+  html:not(.calm) .list.sel-out .item { animation: sel-pad-out 200ms var(--ease-out); }
+  html:not(.calm) body.fmt-bottom.kbd.editing .fmt-bar { animation: fmt-up 220ms var(--ease-out); }
+  html:not(.calm) body.fmt-bottom .fmt-bar.m-fmin { animation: fmt-min 200ms var(--ease-out); }
+  html:not(.calm) body.fmt-bottom .fmt-bar.m-fmax { animation: fmt-max 240ms var(--ease-out); }
+}
+@media (prefers-reduced-motion: no-preference) and (min-width: 820px) {
+  html:not(.calm) .editor > .m-fwd { animation: m-fade var(--m-fast) var(--ease-std); }
+}
+@keyframes m-drop { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes m-chip { 40% { scale: .94; } }
+@keyframes m-sel { from { opacity: 0; scale: .97; } }
+@keyframes sel-pad-in { from { padding-left: 14px; } }
+@keyframes sel-pad-out { from { padding-left: 44px; } }
+@keyframes sel-dot-in { from { scale: 0; opacity: 0; } }
+@keyframes fmt-up { from { opacity: 0; transform: translateY(14px); } }
+@keyframes fmt-min { from { opacity: .4; transform: scaleX(1.6); transform-origin: right center; } }
+@keyframes fmt-max { from { opacity: 0; transform: scaleX(.3); transform-origin: right center; } }
+
+/* Barra de formato en Android: abajo, pegada al teclado, deslizable y plegable hacia la derecha */
+.fb-min, .fb[data-k=fmin] { display: none; }
+body.fmt-bottom .fmt-bar {
+  display: none; position: fixed; z-index: 30; left: 8px; right: 8px; bottom: 8px;
+  height: 52px; padding: 0 0 0 6px; gap: 2px; border: 1px solid var(--card-line); border-radius: 18px;
+  background: var(--card); box-shadow: 0 2px 6px rgba(0, 0, 0, .10), 0 8px 24px rgba(0, 0, 0, .14);
+  overscroll-behavior-x: contain;
+}
+@media (prefers-color-scheme: dark) { body.fmt-bottom .fmt-bar { background: #242424; border-color: #363636; box-shadow: 0 8px 24px rgba(0, 0, 0, .6); } }
+body.fmt-bottom.kbd.editing .fmt-bar { display: flex; }
+body.fmt-bottom .fb { height: 44px; min-width: 44px; border-radius: 12px; }
+body.fmt-bottom .fsep { height: 24px; }
+/* El botón de plegar queda siempre a la vista a la derecha, con un degradé que avisa que hay más botones */
+body.fmt-bottom .fb[data-k=fmin] {
+  display: inline-flex; position: sticky; right: 0; margin-left: auto; z-index: 1; border-radius: 0 17px 17px 0;
+  width: 46px; height: 50px; background: inherit; box-shadow: -14px 0 12px -2px var(--card);
+}
+@media (prefers-color-scheme: dark) { body.fmt-bottom .fb[data-k=fmin] { background: #242424; box-shadow: -14px 0 12px -2px #242424; } }
+body.fmt-bottom .fb[data-k=fmin] .fm-b { display: none; }
+body.fmt-bottom .fmt-bar.min { left: auto; width: 48px; padding: 0; overflow: hidden; border-radius: 50%; height: 48px; }
+body.fmt-bottom .fmt-bar.min > :not([data-k=fmin]) { display: none; }
+body.fmt-bottom .fmt-bar.min .fb[data-k=fmin] { width: 46px; height: 46px; border-radius: 50%; box-shadow: none; margin: 0; }
+body.fmt-bottom .fmt-bar.min .fm-a { display: none; }
+body.fmt-bottom .fmt-bar.min .fm-b { display: inline; }
+/* Espacio al final de la nota para que el último renglón no quede tapado por la barra */
+body.fmt-bottom.kbd:not(.center-on) .ed-body { padding-bottom: calc(4em + 72px); }

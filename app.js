@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.6.0';
+  const APP_VERSION = '2.7.0';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -35,6 +35,8 @@
     finger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 5.4A8.5 8.5 0 0 1 20.5 11v1.5"/><path d="M3.5 9.5a8.6 8.6 0 0 1 1.2-2.4"/><path d="M3.6 13.5c.6-1.2.9-2.4.9-3.5"/><path d="M8 20.2c1.4-2.4 2-5 2-7.7a2 2 0 0 1 4 0c0 .8 0 1.6-.1 2.4"/><path d="M12 12.5c0 3.4-.9 6.6-2.6 9"/><path d="M7.4 9.4A4.5 4.5 0 0 1 16.5 12.5c0 2.6-.4 5.1-1.2 7.4"/><path d="M5.5 17.5c.6-1.6 1-3.3 1-5"/><path d="M19.8 16a24 24 0 0 0 .6-3.5"/><path d="M13.2 21.5c.4-1 .7-2 1-3"/></svg>',
     chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
     burger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+    fmtmin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="fm-a" d="M10 7l5 5-5 5"/><path class="fm-b" d="M5 18h3M9.5 6h7M13 6l-3 12"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     tune: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>',
     refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/></svg>',
     key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5L19 4M16 7l2.5 2.5M14 9l2 2"/></svg>',
@@ -111,6 +113,10 @@
   const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
   function narrow() { return matchMedia('(max-width: 819px)').matches; }
+  // Android con pantalla angosta: la barra de formato va abajo, pegada al teclado.
+  // En iPhone el teclado no achica la página, así que ahí queda arriba como en la web.
+  const ANDROID = /Android/i.test(navigator.userAgent);
+  function fmtBottom() { return ANDROID && narrow(); }
   // Animaciones: se aplican con una clase que se quita sola al terminar. El CSS decide si se ven
   // (respeta "Quitar animaciones" del sistema y la opción de la app).
   function play(el, cls) {
@@ -977,7 +983,7 @@
     to.addEventListener('change', () => { ui.to = to.value; ui.year = ''; renderList(); });
     search.placeholder = 'Buscar en ' + (S.multi ? S.data.profile.name : 'tus notas');
     $('#sidebar').replaceChildren(
-      h('div', { class: 'ptr', id: 'ptr', 'aria-hidden': 'true', html: `<svg class="ptr-ring" viewBox="0 0 38 38"><circle cx="19" cy="19" r="16.5" pathLength="1"/></svg><span class="ptr-r">${I.refresh}</span><span class="ptr-ok">${CHECK}</span>` }),
+      h('div', { class: 'ptr', id: 'ptr', 'aria-hidden': 'true', html: '<svg class="ptr-ring" viewBox="0 0 40 40"><circle cx="20" cy="20" r="9" pathLength="1"/></svg>' }),
       h('div', { class: 'topbar', id: 'side-head' },
         h('div', { class: 'pill' },
           h('button', { class: 'pill-btn', id: 'menu-btn', type: 'button', title: 'Menú de la app', 'aria-label': 'Menú de la app', html: I.burger, onclick: () => openDrawer('app') }),
@@ -993,7 +999,8 @@
         h('div', { class: 'range f-range', id: 'f-range', hidden: true },
           h('label', { class: 'field' }, h('span', { text: 'Desde' }), from),
           h('label', { class: 'field' }, h('span', { text: 'Hasta' }), to)),
-        h('div', { class: 'f-group', id: 'f-cats' })
+        h('div', { class: 'f-group', id: 'f-cats' }),
+        h('div', { class: 'f-foot', id: 'f-foot' })
       ),
       h('div', { class: 'filter-line', id: 'filter-line', hidden: true }),
       h('div', { class: 'list', id: 'list' }),
@@ -1006,16 +1013,44 @@
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path class="ck" pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const initialOf = name => ((name || '').trim().charAt(0) || '·').toUpperCase();
 
+  // El panel de filtros se abre y se cierra estirándose desde la barra de búsqueda (la lista se corre suave, sin saltos).
   function toggleSearch() {
     ui.searchOpen = !ui.searchOpen;
-    $('#search-panel').hidden = !ui.searchOpen;
+    const p = $('#search-panel');
     $('#search-btn').setAttribute('aria-expanded', ui.searchOpen ? 'true' : 'false');
-    renderList();
+    if (p._anim) p._anim.cancel();
+    if (ui.searchOpen) {
+      p.hidden = false;
+      renderList();
+      if (calm()) return;
+      const hgt = p.offsetHeight;
+      p._anim = p.animate([
+        { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', marginBottom: '0px', overflow: 'hidden', transform: 'translateY(-6px)' },
+        { height: hgt + 'px', opacity: 1, overflow: 'hidden', transform: 'none' }
+      ], { duration: 260, easing: 'cubic-bezier(.05, .7, .1, 1)' });
+    } else {
+      const fin = () => { p._anim = null; if (!ui.searchOpen) { p.hidden = true; renderList(); } };
+      if (calm()) { fin(); return; }
+      const hgt = p.offsetHeight;
+      p._anim = p.animate([
+        { height: hgt + 'px', opacity: 1, overflow: 'hidden' },
+        { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', marginBottom: '0px', overflow: 'hidden', transform: 'translateY(-6px)' }
+      ], { duration: 180, easing: 'cubic-bezier(.3, 0, .8, .15)' });
+      p._anim.onfinish = fin;
+    }
   }
 
-  function chipBtn(label, on, onclick, count) {
-    return h('button', { class: 'chip' + (on ? ' on' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', onclick },
-      label, count != null ? h('span', { class: 'muted', text: String(count) }) : null);
+  // Chips de filtro como los de Material: al elegirlos muestran un tilde que entra con un pop.
+  function chipBtn(label, on, onclick, count, key) {
+    const k = key || label;
+    return h('button', { class: 'chip' + (on ? ' on' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', 'data-ck': k,
+      onclick: () => {
+        onclick();
+        const el = document.querySelector(`#search-panel .chip[data-ck="${CSS.escape(k)}"]`);
+        if (el) play(el, 'm-chip');
+      } },
+      h('span', { class: 'chip-ck', 'aria-hidden': 'true', html: CHECK }),
+      h('span', { class: 'chip-l', text: label }), count != null ? h('span', { class: 'chip-n', text: String(count) }) : null);
   }
   function renderFilters() {
     const tags = allTags();
@@ -1042,24 +1077,31 @@
         h('button', { class: 'x', type: 'button', 'aria-label': 'Quitar filtros', text: '×', onclick: () => { clearFilters(); renderList(); } })
       );
     }
+    if (active && fl.hidden) { fl.hidden = false; play(fl, 'm-drop'); }
     fl.hidden = !active;
     if (!ui.searchOpen) return;
 
     const label = t => h('div', { class: 'f-label', text: t });
     $('#f-tags').replaceChildren(...(tags.length ? [label('Etiquetas'), h('div', { class: 'chips' }, tags.map(t => {
       const k = norm(t.name);
-      return chipBtn(t.name, ui.tags.has(k), () => { ui.tags.has(k) ? ui.tags.delete(k) : ui.tags.add(k); renderList(); }, t.count);
+      return chipBtn(t.name, ui.tags.has(k), () => { ui.tags.has(k) ? ui.tags.delete(k) : ui.tags.add(k); renderList(); }, t.count, 't:' + k);
     }))] : []));
     const rangeOn = !ui.year && !!(ui.from || ui.to || ui.rangeOpen);
     $('#f-dates').replaceChildren(label('Fecha'), h('div', { class: 'chips' },
       chipBtn('Todas', !ui.year && !rangeOn, () => { ui.year = ''; ui.from = ''; ui.to = ''; ui.rangeOpen = false; $('#f-from').value = ''; $('#f-to').value = ''; renderList(); }),
-      years.map(y => chipBtn(y, ui.year === y, () => { ui.year = ui.year === y ? '' : y; ui.from = ''; ui.to = ''; ui.rangeOpen = false; $('#f-from').value = ''; $('#f-to').value = ''; renderList(); })),
+      years.map(y => chipBtn(y, ui.year === y, () => { ui.year = ui.year === y ? '' : y; ui.from = ''; ui.to = ''; ui.rangeOpen = false; $('#f-from').value = ''; $('#f-to').value = ''; renderList(); }, null, 'y:' + y)),
       chipBtn('Rango…', rangeOn, () => { ui.year = ''; ui.rangeOpen = !rangeOn; if (!ui.rangeOpen) { ui.from = ''; ui.to = ''; $('#f-from').value = ''; $('#f-to').value = ''; } renderList(); })
     ));
     $('#f-range').hidden = !rangeOn;
     const cats = [...present].sort((a, b) => (a === TR ? -1 : b === TR ? 1 : catName(a).localeCompare(catName(b))));
     $('#f-cats').replaceChildren(...(cats.length ? [label('Con sección'), h('div', { class: 'chips' }, cats.map(c =>
-      chipBtn(catName(c), ui.cats.has(c), () => { ui.cats.has(c) ? ui.cats.delete(c) : ui.cats.add(c); renderList(); })))] : []));
+      chipBtn(catName(c), ui.cats.has(c), () => { ui.cats.has(c) ? ui.cats.delete(c) : ui.cats.add(c); renderList(); }, null, 'c:' + c)))] : []));
+    const some = ui.tags.size || ui.year || ui.from || ui.to || ui.cats.size;
+    $('#f-foot').replaceChildren(
+      some ? h('button', { class: 'btn ghost small', type: 'button', text: 'Limpiar filtros', onclick: () => {
+        ui.tags.clear(); ui.cats.clear(); ui.year = ''; ui.from = ''; ui.to = ''; ui.rangeOpen = false; $('#f-from').value = ''; $('#f-to').value = ''; renderList();
+      } }) : h('span'),
+      h('button', { class: 'btn small primary', type: 'button', text: 'Listo', onclick: toggleSearch }));
   }
 
   /* ---------- Selección múltiple (toque largo en una nota) ---------- */
@@ -1080,25 +1122,51 @@
     el.addEventListener('pointerleave', cancel);
     el.addEventListener('contextmenu', e => e.preventDefault());
   }
+  // Entrar y salir del modo selección no mueve nada de lugar: la barra de selección se apoya sobre la de búsqueda
+  // (mismo alto), los meses no cambian y los círculos entran animados mientras el texto se corre suave.
+  function selPhase(cls) {
+    const list = $('#list');
+    if (!list || calm()) return;
+    list.classList.remove('sel-in', 'sel-out');
+    void list.offsetWidth;
+    list.classList.add(cls);
+    clearTimeout(selPhase.t);
+    selPhase.t = setTimeout(() => list.classList.remove(cls), 320);
+  }
   function startSelect(id) {
+    const was = !!ui.sel;
     if (!ui.sel) ui.sel = new Set();
     ui.sel.add(id);
     renderList();
+    if (!was) { selPhase('sel-in'); play($('#sel-bar'), 'm-sel'); }
   }
-  function endSelect() { ui.sel = null; renderList(); }
+  function endSelect() {
+    if (!ui.sel) return;
+    ui.sel = null;
+    renderList();
+    selPhase('sel-out');
+    play($('#side-head'), 'm-sel');
+  }
+  // Las notas que se ven: con un mes plegado, sus notas no cuentan para "Todas".
+  function visibleNotes() {
+    const notes = filteredNotes();
+    if (filterActive()) return notes;
+    return notes.filter(n => !ui.fold.has(validISO(n.date || '') ? n.date.slice(0, 7) : ''));
+  }
   function renderSelBar() {
     const bar = $('#sel-bar');
     const on = !!ui.sel;
     bar.hidden = !on;
-    $('#side-head').hidden = on;
-    $('#fab').hidden = on;
+    $('#sidebar').classList.toggle('selecting', on);
+    $('#fab').classList.toggle('away', on);
+    $('#fab').tabIndex = on ? -1 : 0;
     document.body.classList.toggle('selecting', on);
     if (!on) return;
     const n = ui.sel.size;
-    const visible = filteredNotes();
+    const visible = visibleNotes();
     const allOn = visible.length > 0 && visible.every(x => ui.sel.has(x.id));
     bar.replaceChildren(
-      h('button', { class: 'btn ghost icon', type: 'button', 'aria-label': 'Salir de la selección', title: 'Salir de la selección', text: '×', onclick: endSelect }),
+      h('button', { class: 'pill-btn sel-x', type: 'button', 'aria-label': 'Salir de la selección', title: 'Salir de la selección', html: I.x, onclick: endSelect }),
       h('span', { class: 'sel-n', text: n === 1 ? '1 elegida' : `${n} elegidas` }),
       h('button', { class: 'btn ghost small', type: 'button', text: allOn ? 'Ninguna' : 'Todas', onclick: () => { if (allOn) ui.sel.clear(); else visible.forEach(x => ui.sel.add(x.id)); renderList(); } }),
       h('button', { class: 'btn ghost icon', type: 'button', title: 'Copiar o descargar como texto', 'aria-label': 'Copiar o descargar como texto', html: I.copy, disabled: !n, onclick: () => { const ids = [...ui.sel]; endSelect(); exportDialog(null, ids); } }),
@@ -1144,7 +1212,7 @@
     const rows = [];
     let lastMonth = null;
     // Meses plegables: solo sin búsqueda ni filtros, para que un resultado nunca quede escondido.
-    const canFold = !filterActive() && !ui.sel;
+    const canFold = !filterActive();
     const perMonth = new Map();
     for (const n of notes) { const k = validISO(n.date || '') ? n.date.slice(0, 7) : ''; perMonth.set(k, (perMonth.get(k) || 0) + 1); }
     // Notas que aparecen desde la última vez (creadas o bajadas de Drive) entran con una animación.
@@ -1160,7 +1228,7 @@
         lastMonth = mk;
         const c = perMonth.get(mk);
         rows.push(canFold
-          ? h('button', { class: 'month fold' + (folded ? ' closed' : ''), type: 'button', 'aria-expanded': folded ? 'false' : 'true', 'data-m': mk, title: folded ? 'Mostrar las notas de este mes' : 'Plegar este mes', onclick: () => toggleMonth(mk) },
+          ? h('button', { class: 'month fold' + (folded ? ' closed' : ''), type: 'button', 'aria-expanded': folded ? 'false' : 'true', 'data-m': mk, title: folded ? 'Mostrar las notas de este mes' : 'Plegar este mes', onclick: () => { if (!longFired) toggleMonth(mk); } },
             h('span', { class: 'm-l', text: monthLabel(mk) }),
             h('span', { class: 'm-c', text: c === 1 ? '1 nota' : `${c} notas` }),
             h('span', { class: 'm-chev', html: I.chev }))
@@ -1178,7 +1246,7 @@
         'aria-pressed': ui.sel ? (picked ? 'true' : 'false') : null,
         onclick: () => {
           if (longFired) { longFired = false; return; }
-          if (ui.sel) { picked ? ui.sel.delete(n.id) : ui.sel.add(n.id); if (!ui.sel.size) ui.sel = null; renderList(); return; }
+          if (ui.sel) { picked ? ui.sel.delete(n.id) : ui.sel.add(n.id); if (!ui.sel.size) { ui.sel = new Set(); endSelect(); } else renderList(); return; }
           openNote(n.id);
         }
       },
@@ -1378,12 +1446,13 @@
     const now = Date.now();
     const n = { id: uid(), title: '', date: todayISO(), text: '', tags: [], transcripts: [], createdAt: now, updatedAt: now };
     S.data.notes.push(n);
-    openNote(n.id);
-    const t = $('.ed-title'); if (t) t.focus();
+    openNote(n.id, null, true);
+    // Sin scroll: el teclado se abre igual (el toque del usuario sigue en curso) y nada se corre durante la entrada.
+    const t = $('.ed-title'); if (t) t.focus({ preventScroll: true });
     return n;
   }
 
-  function openNote(id, tab) {
+  function openNote(id, tab, fresh) {
     const prev = ui.current;
     if (prev && prev !== id) { destroyEditor(); pruneNote(prev); }
     ui.current = id;
@@ -1396,7 +1465,17 @@
       else history.replaceState({ note: id }, '');
     }
     $('#editor').scrollTop = 0;
-    if (prev !== id) play($('#editor'), 'm-fwd');
+    if (prev !== id) enterEditor(fresh);
+  }
+  // Entrada a la nota: se animan la cabecera y el contenido (no el contenedor que hace scroll), con las barras
+  // de desplazamiento ocultas mientras dura. Una nota nueva entra solo con un fundido corto, porque el teclado
+  // se abre al mismo tiempo y un corrimiento se sentiría a los saltos.
+  function enterEditor(fresh) {
+    const ed = $('#editor');
+    ed.classList.add('no-sb');
+    clearTimeout(enterEditor.t);
+    enterEditor.t = setTimeout(() => ed.classList.remove('no-sb'), 700);
+    for (const el of ed.children) play(el, fresh ? 'm-fresh' : 'm-fwd');
   }
   function closeEditor() {
     const prev = ui.current;
@@ -1407,7 +1486,12 @@
     document.body.classList.remove('show-editor');
     showEmpty();
     renderList();
-    if (wasOpen && narrow()) play($('#sidebar'), 'm-back');
+    if (wasOpen && narrow()) {
+      const sb = $('#sidebar');
+      sb.classList.add('no-sb');
+      setTimeout(() => sb.classList.remove('no-sb'), 500);
+      play(sb, 'm-back');
+    }
   }
   document.addEventListener('change', e => {
     const t = e.target;
@@ -1522,7 +1606,9 @@
     }
     const vv = window.visualViewport;
     const top = r.top + headVis;
-    const bottom = Math.min(r.bottom, vv ? vv.offsetTop + vv.height : innerHeight);
+    let bottom = Math.min(r.bottom, vv ? vv.offsetTop + vv.height : innerHeight);
+    const fbar = ED.fmt && document.body.classList.contains('fmt-bottom') && document.body.classList.contains('kbd') ? ED.fmt.getBoundingClientRect() : null;
+    if (fbar && fbar.height) bottom = Math.min(bottom, fbar.top - 8);
     const avail = bottom - top;
     if (avail < 100) return;
     const y = (c.top + c.bottom) / 2;
@@ -1784,7 +1870,9 @@
 
   function mountEditor(n, target, head, host, placeholder, label, onText) {
     const fmt = fmtBar();
-    head.append(fmt);
+    const bottom = fmtBottom();
+    document.body.classList.toggle('fmt-bottom', bottom);
+    if (bottom) $('#editor').append(fmt); else head.append(fmt);
     const X = window.NotasEditor;
     const E = edExtensions();
     const legacy = target !== n && isPlainT(target);
@@ -1804,8 +1892,8 @@
       editorProps: {
         attributes: { class: 'prose-ed', 'aria-label': label, spellcheck: PREF.spell ? 'true' : 'false' },
         transformPastedHTML: cleanPastedHTML,
-        scrollMargin: { top: 130, bottom: 60, left: 0, right: 0 },
-        scrollThreshold: { top: 130, bottom: 60, left: 0, right: 0 },
+        scrollMargin: { top: 130, bottom: bottom ? 88 : 60, left: 0, right: 0 },
+        scrollThreshold: { top: 130, bottom: bottom ? 88 : 60, left: 0, right: 0 },
         // Con escritura centrada, el scroll lo maneja centerCaret.
         handleScrollToSelection: () => centerOn()
       },
@@ -1906,7 +1994,7 @@
     const sep = () => h('span', { class: 'fsep', 'aria-hidden': 'true' });
     const c = e => e.chain().focus();
     const T = (k, label, title, fn) => { const b = B(k, label, title, fn); b.classList.add('tb'); return b; };
-    return h('div', { class: 'fmt-bar', role: 'toolbar', 'aria-label': 'Formato' },
+    return h('div', { class: 'fmt-bar' + (PREF.fmtMin ? ' min' : ''), role: 'toolbar', 'aria-label': 'Formato' },
       T('tRowAdd', '+ Fila', 'Agregar fila debajo', e => c(e).addRowAfter().run()),
       T('tColAdd', '+ Columna', 'Agregar columna a la derecha', e => c(e).addColumnAfter().run()),
       T('tRowDel', '− Fila', 'Quitar esta fila', e => c(e).deleteRow().run()),
@@ -1935,8 +2023,20 @@
       B('undo', '', 'Deshacer', e => c(e).undo().run(), I.undo),
       B('redo', '', 'Rehacer', e => c(e).redo().run(), I.redo),
       sep(),
-      B('outline', '', 'Índice de títulos', () => outlineDialog(), I.outline)
+      B('outline', '', 'Índice de títulos', () => outlineDialog(), I.outline),
+      // Solo en Android (barra abajo): achica la barra a un botón chico pegado a la derecha.
+      B('fmin', '', 'Achicar o mostrar la barra de formato', () => toggleFmtMin(), I.fmtmin)
     );
+  }
+  function toggleFmtMin() {
+    PREF.fmtMin = !PREF.fmtMin;
+    savePrefs();
+    const bar = ED && ED.fmt;
+    if (!bar) return;
+    bar.classList.toggle('min', PREF.fmtMin);
+    if (!PREF.fmtMin) bar.scrollLeft = 0;
+    play(bar, PREF.fmtMin ? 'm-fmin' : 'm-fmax');
+    centerSoon(true, 60);
   }
 
   function outlineDialog() {
@@ -2275,11 +2375,11 @@
     return h('button', { class: 'dr-item' + (cls ? ' ' + cls : ''), type: 'button', onclick: () => { closeDrawer(); fn(); } },
       h('span', { class: 'dr-ic', html: icon }), h('span', { class: 'dr-t', text }));
   }
-  function closeDrawer() {
+  function closeDrawer(ms = 180) {
     const d = $('#drawer');
     if (!d.open) return;
-    d.classList.remove('in');
-    setTimeout(() => { if (d.open && !d.classList.contains('in')) d.close(); }, 180);
+    d.classList.remove('in', 'dragging');
+    setTimeout(() => { if (d.open && !d.classList.contains('in')) d.close(); }, ms);
   }
   function openDrawer(kind) {
     if (!S) return;
@@ -2347,30 +2447,64 @@
     d.addEventListener('cancel', e => { e.preventDefault(); closeDrawer(); });
     d.addEventListener('close', () => { d.classList.remove('in'); d.replaceChildren(); });
   }
-  // Deslizar el menú hacia afuera lo cierra. dir: -1 se va a la izquierda, 1 a la derecha.
-  // Con eventos táctiles: siguen llegando aunque el navegador empiece a desplazar.
+  // Deslizar el menú hacia afuera lo cierra, y mientras se arrastra el menú va pegado al dedo (1 a 1)
+  // y el fondo se aclara en proporción. Al soltar decide por distancia y velocidad (un gesto rápido cierra
+  // aunque no llegue a la mitad) y termina el recorrido desde donde quedó, a la velocidad del dedo.
+  // dir: -1 se va a la izquierda (menú de la app), 1 a la derecha (tu cuenta).
   function swipeClose(d, dir) {
     const inner = d.firstChild;
-    let sx = 0, sy = 0, dx = 0, on = false, track = false;
-    inner.addEventListener('touchstart', e => { if (e.touches.length !== 1) { track = false; return; } sx = e.touches[0].clientX; sy = e.touches[0].clientY; dx = 0; on = false; track = true; }, { passive: true });
+    let sx = 0, sy = 0, dx = 0, w = 1, on = false, track = false, pts = [];
+    const clear = () => { inner.style.transition = ''; inner.style.translate = ''; inner.style.transform = ''; d.style.removeProperty('--dr-p'); d.classList.remove('dragging'); };
+    inner.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1 || !d.classList.contains('in')) { track = false; return; }
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; dx = 0; on = false; track = true;
+      w = inner.offsetWidth || 1;
+      pts = [[e.timeStamp, sx]];
+    }, { passive: true });
     inner.addEventListener('touchmove', e => {
       if (!track) return;
-      const mx = e.touches[0].clientX - sx, my = e.touches[0].clientY - sy;
+      const x = e.touches[0].clientX;
+      const mx = x - sx, my = e.touches[0].clientY - sy;
       if (!on) {
-        if (Math.abs(my) > 14 && Math.abs(my) > Math.abs(mx)) { track = false; return; }
-        if (Math.abs(mx) > 12 && Math.sign(mx) === dir) on = true; else return;
+        if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { track = false; return; }
+        if (Math.abs(mx) > 8 && Math.sign(mx) === dir) { on = true; sx = x; } else return;
       }
-      dx = dir > 0 ? Math.max(0, mx) : Math.min(0, mx);
+      dx = dir > 0 ? Math.max(0, x - sx) : Math.min(0, x - sx);
+      pts.push([e.timeStamp, x]);
+      while (pts.length > 2 && e.timeStamp - pts[0][0] > 100) pts.shift();
+      d.classList.add('dragging');
       inner.style.transition = 'none';
       inner.style.translate = dx + 'px 0';
+      d.style.setProperty('--dr-p', Math.max(0, 1 - Math.abs(dx) / w).toFixed(3));
       if (e.cancelable) e.preventDefault();
     }, { passive: false });
-    const end = () => {
+    const end = e => {
       if (!track) return;
       track = false;
       if (!on) return;
-      inner.style.transition = ''; inner.style.translate = '';
-      if (Math.abs(dx) > 70) closeDrawer();
+      const [t0, x0] = pts[0], [t1, x1] = pts[pts.length - 1];
+      // Si el dedo quedó quieto antes de soltar, no hay envión: decide solo la distancia.
+      const still = e && e.timeStamp - t1 > 80;
+      const v = !still && t1 > t0 ? ((x1 - x0) / (t1 - t0)) * dir : 0; // px/ms hacia afuera (+) o hacia adentro (-)
+      const shut = v > 0.3 || (Math.abs(dx) > w * 0.4 && v > -0.15);
+      if (calm()) { clear(); if (shut) closeDrawer(0); return; }
+      if (shut) {
+        const left = w + 24 - Math.abs(dx);
+        const ms = Math.round(Math.min(240, Math.max(110, left / Math.max(v, 1.1))));
+        inner.style.transform = 'none';
+        inner.style.transition = `translate ${ms}ms cubic-bezier(.25, .6, .4, 1)`;
+        inner.style.translate = dir * (w + 24) + 'px 0';
+        d.classList.remove('dragging');
+        d.style.setProperty('--dr-p', '0');
+        closeDrawer(ms);
+      } else {
+        // Vuelve a su lugar con desaceleración, sin rebote.
+        d.classList.remove('dragging');
+        inner.style.transition = 'translate 240ms cubic-bezier(.05, .7, .1, 1)';
+        inner.style.translate = '0px 0';
+        d.style.setProperty('--dr-p', '1');
+        setTimeout(() => { if (!track && d.classList.contains('in')) clear(); }, 260);
+      }
     };
     inner.addEventListener('touchend', end);
     inner.addEventListener('touchcancel', end);
@@ -2399,13 +2533,21 @@
   }
 
   /* ---------- Tirar la lista hacia abajo para sincronizar ---------- */
+  // Como en las apps de Google: un círculo blanco baja con el dedo y el arco crece y gira con el tirón.
+  // Al soltar gira un momento y se va achicándose. El progreso real lo muestra el aro azul del círculo de la cuenta.
   function pullToSync(list) {
     const ind = $('#ptr');
     let sy = 0, dy = 0, on = false, track = false;
-    const arrow = () => ind.querySelector('.ptr-r');
-    const reset = () => { ind.style.translate = ''; ind.style.removeProperty('--p'); arrow().style.rotate = ''; ind.classList.remove('show', 'ready'); };
+    const reset = () => { ind.style.translate = ''; ind.style.removeProperty('--p'); ind.classList.remove('show', 'ready', 'busy', 'out'); };
+    const leave = () => {
+      // Se va achicándose y desvaneciéndose desde donde está.
+      ind.classList.remove('show', 'ready');
+      ind.classList.add('out');
+      clearTimeout(ptr.t1);
+      ptr.t1 = setTimeout(reset, calm() ? 0 : 220);
+    };
     list.addEventListener('touchstart', e => {
-      track = list.scrollTop <= 0 && e.touches.length === 1 && !ui.sel;
+      track = list.scrollTop <= 0 && e.touches.length === 1 && !ui.sel && !ind.classList.contains('busy');
       sy = e.touches[0].clientY; dy = 0; on = false;
     }, { passive: true });
     list.addEventListener('touchmove', e => {
@@ -2415,54 +2557,34 @@
         if (dy < -4 || list.scrollTop > 0) { track = false; return; }
         if (dy > 12) on = true; else return;
       }
-      const pull = Math.min(110, Math.max(0, dy - 12) * 0.5);
+      clearTimeout(ptr.t1);
+      ind.classList.remove('out');
+      // Resistencia creciente: cuanto más se tira, menos baja.
+      const raw = Math.max(0, dy - 12);
+      const pull = 120 * (1 - Math.exp(-raw / 160));
       ind.classList.add('show');
-      ind.classList.toggle('ready', pull >= 48);
-      ind.style.translate = `-50% ${pull}px`;
-      // Se estira con el dedo: crece, se completa el aro y gira la flecha.
-      ind.style.setProperty('--p', Math.min(1, pull / 48).toFixed(3));
-      arrow().style.rotate = (pull * 4) + 'deg';
+      ind.classList.toggle('ready', pull >= 64);
+      ind.style.translate = `-50% ${pull.toFixed(1)}px`;
+      ind.style.setProperty('--p', Math.min(1, pull / 64).toFixed(3));
       if (e.cancelable) e.preventDefault();
     }, { passive: false });
     const end = () => {
       if (!track || !on) { track = false; return; }
       track = false;
       const ready = ind.classList.contains('ready');
-      if (!ready) { reset(); return; }
-      if (!driveConfigured()) { reset(); toast('La sincronización no está configurada.'); return; }
-      if (!driveOn()) { reset(); connectDialog(); return; }
-      // El indicador queda girando hasta que termina y muestra el tilde.
+      if (!ready) { leave(); return; }
+      if (!driveConfigured()) { leave(); toast('La sincronización no está configurada.'); return; }
+      if (!driveOn()) { leave(); connectDialog(); return; }
       ind.classList.remove('ready'); ind.classList.add('busy');
-      arrow().style.rotate = ''; ind.style.removeProperty('--p'); ind.style.translate = '-50% 48px';
-      ptr.seen = G.state === 'sync';
-      clearTimeout(ptr.t1); clearTimeout(ptr.t2);
-      ptr.t1 = setTimeout(() => { if (!ptr.seen) ptrFinish(false); }, 2000);
-      ptr.t2 = setTimeout(() => ptrFinish(false), 30000);
+      ind.style.removeProperty('--p'); ind.style.translate = '-50% 64px';
       syncBtnTap();
-      ptrTick();
+      clearTimeout(ptr.t1);
+      ptr.t1 = setTimeout(leave, calm() ? 300 : 650);
     };
     list.addEventListener('touchend', end);
     list.addEventListener('touchcancel', () => { track = false; reset(); });
   }
-
-  const ptr = { seen: false, t1: 0, t2: 0 };
-  function ptrTick() {
-    const ind = document.getElementById('ptr');
-    if (!ind || !ind.classList.contains('busy')) return;
-    if (G.state === 'sync') { ptr.seen = true; return; }
-    if (ptr.seen) ptrFinish(syncVisual()[0] === 'ok');
-  }
-  function ptrFinish(ok) {
-    const ind = document.getElementById('ptr');
-    clearTimeout(ptr.t1); clearTimeout(ptr.t2);
-    if (!ind || !ind.classList.contains('busy')) return;
-    ind.classList.remove('busy');
-    if (ok) ind.classList.add('done');
-    setTimeout(() => {
-      ind.classList.remove('show');
-      setTimeout(() => { if (!ind.classList.contains('show')) { ind.classList.remove('done'); ind.style.translate = ''; } }, 200);
-    }, ok ? 750 : 0);
-  }
+  const ptr = { t1: 0 };
 
   /* ---------- Barras del sistema con el color de la pantalla ---------- */
   // La barra de notificaciones toma el color de lo que está arriba: lista, nota, bloqueo, o el fondo oscurecido de un diálogo.
@@ -2480,10 +2602,12 @@
     if (!bg || bg === 'rgba(0, 0, 0, 0)') bg = getComputedStyle(document.body).backgroundColor;
     let [r, g, b] = rgbOf(bg);
     // Con un menú lateral abierto, la barra toma el color del menú (así se ve de arriba a abajo, como en ChatGPT).
+    // Mientras el menú entra o sale queda el color de la pantalla: un solo cambio, sin pasar por el oscurecido de los diálogos.
     const dr = document.getElementById('drawer');
-    if (dr && dr.open && dr.classList.contains('in')) [r, g, b] = rgbOf(getComputedStyle(dr.firstChild || dr).backgroundColor);
+    const dlgOpen = [...document.querySelectorAll('dialog')].some(d => d.open && d !== dr);
+    if (dr && dr.open && !dlgOpen) { if (dr.classList.contains('in') && dr.firstChild) [r, g, b] = rgbOf(getComputedStyle(dr.firstChild).backgroundColor); }
     // Un diálogo abierto oscurece la pantalla: la barra también.
-    else if ([...document.querySelectorAll('dialog')].some(d => d.open)) { const a = 0.45; r = r * (1 - a) + 10 * a; g = g * (1 - a) + 8 * a; b = b * (1 - a) + 5 * a; }
+    else if (dlgOpen) { const a = 0.45; r = r * (1 - a) + 10 * a; g = g * (1 - a) + 8 * a; b = b * (1 - a) + 5 * a; }
     const hex = '#' + [r, g, b].map(x => Math.round(x).toString(16).padStart(2, '0')).join('');
     if (metaTheme.content !== hex) metaTheme.content = hex;
   }
@@ -3298,7 +3422,6 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
     }
     const line = document.getElementById('dr-sync');
     if (line && driveConfigured()) { const [st, name, why] = syncVisual(); line.dataset.state = st; line.textContent = 'Drive: ' + name; line.title = why; }
-    ptrTick();
   }
   setInterval(() => { if (G.state === 'ok') renderSync(); }, 30000);
 
