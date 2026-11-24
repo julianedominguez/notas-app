@@ -50,12 +50,12 @@ App web personal de notas que funciona sin conexión. Las notas se guardan encri
 ## Lista de notas
 
 - Arriba, una barra de búsqueda como la de Gmail: ☰ abre el menú de la app, el texto busca en notas y secciones, el ícono de ajustes abre los filtros (etiquetas, año o rango de fechas, notas con cierta sección) y el círculo con la inicial abre tu cuenta.
-- Los dos menús laterales se cierran deslizándolos hacia afuera: siguen al dedo, y un gesto rápido alcanza para cerrarlos.
+- Los dos menús laterales se cierran deslizando hacia afuera desde cualquier parte de la pantalla: siguen al dedo, y un gesto rápido alcanza para cerrarlos.
 - Menú de la app (☰, o deslizando hacia la derecha sobre la lista): copiar o descargar como texto, nota desde .docx, importar, apariencia, categorías y backups.
 - Tu cuenta (el círculo): sincronizar o conectar Drive, bloquear, cambiar de cuenta; seguridad (huella, bloqueo automático de 1 minuto a 1 hora por dispositivo, contraseña); esta cuenta (nombre, desconectar Drive); este dispositivo (agregar otra cuenta). Al final y separado, "Eliminar cuentas o datos…", el único lugar con opciones que borran. El puntito del círculo es el estado de Drive: verde sincronizado, ámbar con cambios sin subir o para reconectar, rojo si falló, gris sin conexión.
 - Tirar la lista hacia abajo sincroniza con Drive: el círculo baja con el dedo, gira un momento y se va. Mientras sincroniza, el círculo de la cuenta muestra un aro azul que gira.
 - Las notas van separadas por una línea fina, con la fecha corta a la derecha y un rótulo de mes y año que queda pegado arriba al deslizar.
-- Botón + abajo a la derecha para una nota nueva. Toque largo en una nota para elegir varias y copiarlas, descargarlas o borrarlas juntas. La barra de selección ocupa el lugar del buscador, así que nada se corre; "Todas" elige solo las notas a la vista (no las de meses plegados).
+- Botón + abajo a la derecha para una nota nueva. Toque largo en una nota para elegir varias y copiarlas, descargarlas o borrarlas juntas. En el celu, el botón atrás sale de la selección sin cerrar la app. La barra de selección ocupa el lugar del buscador, así que nada se corre; "Todas" elige solo las notas a la vista (no las de meses plegados).
 - Los filtros se abren en una tarjeta debajo del buscador, con "Limpiar filtros" y "Listo".
 - Toque largo en cualquier botón: muestra qué hace, sin ejecutarlo.
 - La barra de notificaciones toma el color de la pantalla que se está viendo (y se oscurece con un diálogo o un menú abierto).

@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.7.0';
+  const APP_VERSION = '2.7.1';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -135,16 +135,23 @@
     return Promise.all(els.map(el => {
       const hgt = el.offsetHeight;
       el.style.overflow = 'hidden';
-      return el.animate([{ height: hgt + 'px', opacity: 1 }, { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px' }],
-        { duration: 220, easing: 'cubic-bezier(.3, 0, .8, .15)', fill: 'forwards' }).finished.catch(() => {});
+      // Mismos 220 ms, pero suave: curva que arranca y frena de a poco, y el texto se desvanece antes de que la fila termine de achicarse.
+      return el.animate([
+        { height: hgt + 'px', opacity: 1 },
+        { opacity: 0, offset: .55 },
+        { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px' }],
+        { duration: 220, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' }).finished.catch(() => {});
     }));
   }
   function expand(els) {
     if (calm()) return;
     for (const el of els) {
       const hgt = el.offsetHeight;
-      el.animate([{ height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', overflow: 'hidden' }, { height: hgt + 'px', opacity: 1, overflow: 'hidden' }],
-        { duration: 260, easing: 'cubic-bezier(.05, .7, .1, 1)' });
+      el.animate([
+        { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', overflow: 'hidden' },
+        { opacity: 0, offset: .35, overflow: 'hidden' },
+        { height: hgt + 'px', opacity: 1, overflow: 'hidden' }],
+        { duration: 260, easing: 'cubic-bezier(.2, 0, 0, 1)' });
     }
   }
   function calm() { return document.documentElement.classList.contains('calm') || matchMedia('(prefers-reduced-motion: reduce)').matches; }
@@ -329,6 +336,7 @@
     clearTimeout(G.timer);
     G.state = 'idle'; G.detail = ''; G.pending = false; G.forcePush = false;
     ui.current = null; clearFilters(); ui.searchOpen = false; ui.rangeOpen = false; ui.sel = null;
+    dropSelHist();
     document.body.classList.remove('selecting');
     for (const d of [$('#dlg'), $('#dlg2')]) { if (d.open) d.close(); d.replaceChildren(); }
     $('#sidebar').replaceChildren();
@@ -1133,16 +1141,27 @@
     clearTimeout(selPhase.t);
     selPhase.t = setTimeout(() => list.classList.remove(cls), 320);
   }
+  // En el celu, entrar en la selección suma un paso al historial: el botón atrás sale de la selección (y no de la app).
+  // Salir por otro camino (la ×, borrar, copiar) saca ese paso, así atrás sigue funcionando como siempre.
+  let ignorePop = 0;
+  function dropSelHist() {
+    if (!ui.selHist) return;
+    ui.selHist = false;
+    ignorePop = Date.now() + 600;
+    history.back();
+  }
   function startSelect(id) {
     const was = !!ui.sel;
     if (!ui.sel) ui.sel = new Set();
     ui.sel.add(id);
+    if (!was && narrow() && !ui.selHist) { history.pushState({ sel: true }, ''); ui.selHist = true; }
     renderList();
     if (!was) { selPhase('sel-in'); play($('#sel-bar'), 'm-sel'); }
   }
-  function endSelect() {
+  function endSelect(fromPop) {
     if (!ui.sel) return;
     ui.sel = null;
+    if (fromPop === true) ui.selHist = false; else dropSelHist();
     renderList();
     selPhase('sel-out');
     play($('#side-head'), 'm-sel');
@@ -1166,7 +1185,7 @@
     const visible = visibleNotes();
     const allOn = visible.length > 0 && visible.every(x => ui.sel.has(x.id));
     bar.replaceChildren(
-      h('button', { class: 'pill-btn sel-x', type: 'button', 'aria-label': 'Salir de la selección', title: 'Salir de la selección', html: I.x, onclick: endSelect }),
+      h('button', { class: 'pill-btn sel-x', type: 'button', 'aria-label': 'Salir de la selección', title: 'Salir de la selección', html: I.x, onclick: () => endSelect() }),
       h('span', { class: 'sel-n', text: n === 1 ? '1 elegida' : `${n} elegidas` }),
       h('button', { class: 'btn ghost small', type: 'button', text: allOn ? 'Ninguna' : 'Todas', onclick: () => { if (allOn) ui.sel.clear(); else visible.forEach(x => ui.sel.add(x.id)); renderList(); } }),
       h('button', { class: 'btn ghost icon', type: 'button', title: 'Copiar o descargar como texto', 'aria-label': 'Copiar o descargar como texto', html: I.copy, disabled: !n, onclick: () => { const ids = [...ui.sel]; endSelect(); exportDialog(null, ids); } }),
@@ -1192,6 +1211,7 @@
     }
     scheduleSave();
     ui.sel = null;
+    dropSelHist();
     renderList();
     toast(ids.length === 1 ? 'Nota eliminada.' : `${ids.length} notas eliminadas.`);
   }
@@ -1228,7 +1248,7 @@
         lastMonth = mk;
         const c = perMonth.get(mk);
         rows.push(canFold
-          ? h('button', { class: 'month fold' + (folded ? ' closed' : ''), type: 'button', 'aria-expanded': folded ? 'false' : 'true', 'data-m': mk, title: folded ? 'Mostrar las notas de este mes' : 'Plegar este mes', onclick: () => { if (!longFired) toggleMonth(mk); } },
+          ? h('button', { class: 'month fold' + (folded ? ' closed' : ''), type: 'button', 'aria-expanded': folded ? 'false' : 'true', 'data-m': mk, title: folded ? 'Mostrar las notas de este mes' : 'Plegar este mes', onclick: () => toggleMonth(mk) },
             h('span', { class: 'm-l', text: monthLabel(mk) }),
             h('span', { class: 'm-c', text: c === 1 ? '1 nota' : `${c} notas` }),
             h('span', { class: 'm-chev', html: I.chev }))
@@ -1501,7 +1521,13 @@
     try { t.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: 260, delay: 40, easing: 'cubic-bezier(.2, 0, 0, 1)', fill: 'backwards', pseudoElement: '::before' }); } catch { /* sin seudoelementos: el tilde aparece directo */ }
   }, true);
   addEventListener('keydown', e => { if (e.key === 'Escape' && S && ui.sel && !$('#dlg').open && !$('#dlg2').open) endSelect(); });
-  addEventListener('popstate', () => { if (S && ui.current && narrow()) closeEditor(); });
+  addEventListener('popstate', () => {
+    // El paso que se saca solo al salir de la selección por otro camino no cuenta como "atrás".
+    if (ignorePop && Date.now() < ignorePop) { ignorePop = 0; return; }
+    ignorePop = 0;
+    if (S && ui.sel) { endSelect(true); return; }
+    if (S && ui.current && narrow()) closeEditor();
+  });
   function goBack() {
     if (history.state && history.state.note) history.back();
     else closeEditor();
@@ -2437,7 +2463,6 @@
     if (driveConfigured()) loadGis().catch(() => {});
     if (!d.open) d.showModal();
     requestAnimationFrame(() => requestAnimationFrame(() => d.classList.add('in')));
-    swipeClose(d, kind === 'app' ? -1 : 1);
   }
   // Compatibilidad: lo que antes abría el menú ahora abre el de la app.
   const menuDialog = () => openDrawer('app');
@@ -2446,22 +2471,26 @@
     d.addEventListener('click', e => { if (e.target === d) closeDrawer(); });
     d.addEventListener('cancel', e => { e.preventDefault(); closeDrawer(); });
     d.addEventListener('close', () => { d.classList.remove('in'); d.replaceChildren(); });
+    swipeClose(d);
   }
   // Deslizar el menú hacia afuera lo cierra, y mientras se arrastra el menú va pegado al dedo (1 a 1)
   // y el fondo se aclara en proporción. Al soltar decide por distancia y velocidad (un gesto rápido cierra
   // aunque no llegue a la mitad) y termina el recorrido desde donde quedó, a la velocidad del dedo.
   // dir: -1 se va a la izquierda (menú de la app), 1 a la derecha (tu cuenta).
-  function swipeClose(d, dir) {
-    const inner = d.firstChild;
+  // El gesto se escucha en todo el diálogo: el menú y también la zona oscura de afuera, o sea, desde cualquier parte de la pantalla.
+  function swipeClose(d) {
+    let inner = null, dir = -1;
     let sx = 0, sy = 0, dx = 0, w = 1, on = false, track = false, pts = [];
-    const clear = () => { inner.style.transition = ''; inner.style.translate = ''; inner.style.transform = ''; d.style.removeProperty('--dr-p'); d.classList.remove('dragging'); };
-    inner.addEventListener('touchstart', e => {
-      if (e.touches.length !== 1 || !d.classList.contains('in')) { track = false; return; }
+    const clear = () => { if (inner) { inner.style.transition = ''; inner.style.translate = ''; inner.style.transform = ''; } d.style.removeProperty('--dr-p'); d.classList.remove('dragging'); };
+    d.addEventListener('touchstart', e => {
+      inner = d.firstChild;
+      if (!inner || e.touches.length !== 1 || !d.classList.contains('in')) { track = false; return; }
+      dir = d.classList.contains('left') ? -1 : 1;
       sx = e.touches[0].clientX; sy = e.touches[0].clientY; dx = 0; on = false; track = true;
       w = inner.offsetWidth || 1;
       pts = [[e.timeStamp, sx]];
     }, { passive: true });
-    inner.addEventListener('touchmove', e => {
+    d.addEventListener('touchmove', e => {
       if (!track) return;
       const x = e.touches[0].clientX;
       const mx = x - sx, my = e.touches[0].clientY - sy;
@@ -2506,8 +2535,8 @@
         setTimeout(() => { if (!track && d.classList.contains('in')) clear(); }, 260);
       }
     };
-    inner.addEventListener('touchend', end);
-    inner.addEventListener('touchcancel', end);
+    d.addEventListener('touchend', end);
+    d.addEventListener('touchcancel', end);
   }
   // Deslizar hacia la derecha sobre la mitad izquierda de la lista abre el menú de la app.
   function edgeSwipe(pane) {

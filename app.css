@@ -1026,3 +1026,6 @@ body.fmt-bottom .fmt-bar.min .fm-a { display: none; }
 body.fmt-bottom .fmt-bar.min .fm-b { display: inline; }
 /* Espacio al final de la nota para que el último renglón no quede tapado por la barra */
 body.fmt-bottom.kbd:not(.center-on) .ed-body { padding-bottom: calc(4em + 72px); }
+
+/* 2.7.1: el gesto de cerrar los menús se escucha en todo el diálogo (menú y zona oscura) */
+.drawer { touch-action: pan-y; }
