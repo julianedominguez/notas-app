@@ -383,11 +383,9 @@ body.center-on .ed-body { padding-bottom: calc(45vh + env(safe-area-inset-bottom
 .brand .brand-s { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-mark { width: 30px; height: 30px; flex: none; display: block; }
 .app-mark svg { width: 100%; height: 100%; display: block; }
-.am-bg { fill: var(--accent); }
-.am-pg { fill: #ffffff; fill-opacity: .94; }
-.am-bk { fill: #9db6f8; }
-.am-t { fill: #2453d9; }
-.am-n { fill: none; stroke: #7fa0f6; stroke-width: 5; stroke-linecap: round; }
+.am-bg { fill: #fbfcff; }
+.am-hl { fill: #a9c1fb; }
+.am-ink { fill: #17307f; }
 .search-btn, .sync-btn { position: relative; }
 .search-btn .dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); display: none; }
 .search-btn.has-filter .dot { display: block; }
