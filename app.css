@@ -691,3 +691,12 @@ button, [data-tip] { -webkit-touch-callout: none; -webkit-user-select: none; use
 /* 1.9.1: la cabecera de la nota usa el mismo fondo que la página (negro en oscuro), como ChatGPT */
 .ed-head, .ed-nav, .fmt-bar { background: var(--page); }
 .fmt-bar { border-top-color: var(--line); }
+/* 1.9.4: buscador con más contraste */
+.pill { background: #ebebeb; border-color: #d4d4d4; }
+.pill input[type=search]::placeholder { color: #5a5a5a; }
+@media (prefers-color-scheme: dark) {
+  .pill { background: #2a2a2a; border-color: #424242; }
+  .pill input[type=search]::placeholder { color: #b4b4b4; }
+  .pill .search-btn .dot { box-shadow: 0 0 0 2px #2a2a2a; }
+  .pill .av-dot { border-color: #2a2a2a; }
+}

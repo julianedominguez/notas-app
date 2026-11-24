@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.9.3';
+  const APP_VERSION = '1.9.4';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -465,6 +465,7 @@
   }
 
   /* ---------- Pantalla de inicio: elegir cuenta y entrar con contraseña o huella ---------- */
+  let bioBusy = false;
   const sessLabel = x => x.name || (x.id === MAIN ? 'Principal' : 'Otra sesión');
   async function openOne(sid, pass) {
     const rec = await DB.get(vaultKey(sid));
@@ -601,18 +602,26 @@
         await enterSession(got, pass);
       }
     }, pw, msg, btn);
-    const fp = hasBio ? h('button', { class: 'bio-btn', type: 'button', 'aria-label': 'Entrar con huella', onclick: async () => {
-      fp.disabled = true; msg.textContent = '';
+    // auto: la huella se pide sola al abrir la cuenta. Si la cerrás, queda la contraseña lista para escribir.
+    const tryBio = async auto => {
+      if (bioBusy || S) return;
+      bioBusy = true; fp.disabled = true; msg.textContent = '';
       try {
         const got = await bioOpen(sid);
+        bioBusy = false;
         await enterSession(got, null);
       } catch (e) {
+        bioBusy = false;
         console.error(e);
         fp.disabled = false;
-        msg.textContent = bioMsg(e);
-        if (e && e.code === 'stale') { fp.hidden = true; pw.focus(); }
+        const cancel = e && (e.name === 'NotAllowedError' || e.name === 'AbortError');
+        msg.textContent = auto && cancel ? '' : bioMsg(e);
+        if (e && e.code === 'stale') fp.hidden = true;
+        if (auto || (e && e.code === 'stale')) pw.focus();
       }
-    } }, h('span', { class: 'bio-ic', html: I.finger }), h('span', { class: 'bio-t', text: 'Entrar con huella' })) : null;
+    };
+    const fp = hasBio ? h('button', { class: 'bio-btn', type: 'button', 'aria-label': 'Entrar con huella', onclick: () => tryBio(false) },
+      h('span', { class: 'bio-ic', html: I.finger }), h('span', { class: 'bio-t', text: 'Entrar con huella' })) : null;
     card.replaceChildren(...[h('div', { class: 'lock-mark', html: I.lock }),
       h('h1', { text: multi ? sessLabel(chosen) : 'notas-app' }),
       h('p', { text: hasBio ? 'Ingresá tu contraseña o usá la huella.' : 'Ingresá tu contraseña.' }),
@@ -623,6 +632,12 @@
         multi ? h('button', { class: 'linklike', type: 'button', text: 'Cambiar de cuenta', onclick: () => showLock() }) : null,
         h('button', { class: 'linklike', type: 'button', text: '¿Olvidaste la contraseña?', onclick: forgotDialog }))].filter(Boolean));
     root.replaceChildren(card);
+    if (hasBio) {
+      const go = () => { if (!S && card.isConnected && document.visibilityState === 'visible') tryBio(true); };
+      if (document.visibilityState === 'visible') setTimeout(go, 120);
+      else document.addEventListener('visibilitychange', function once() { if (document.visibilityState === 'visible') { document.removeEventListener('visibilitychange', once); setTimeout(go, 120); } });
+      return;
+    }
     // Con huella no se abre el teclado solo: así se ve el botón.
     if (!hasBio || !narrow()) setTimeout(() => pw.focus(), 50);
   }
@@ -1622,7 +1637,7 @@
           h('button', { class: 'btn small', text: 'Copiar', onclick: async () => { commitEditor(); toast(await copyText(t.text) ? 'Sección copiada.' : 'No se pudo copiar.'); } }),
           h('button', { class: 'btn small danger', text: 'Eliminar', onclick: async () => {
             commitEditor();
-            if ((t.text || '').trim() && !(await confirmBox('¿Eliminar esta sección?', 'Eliminar', true))) return;
+            if (!(await confirmBox(`¿Eliminar la sección "${secLabel(n, t)}"? ${(t.text || '').trim() ? 'Se borra su contenido y no se puede deshacer.' : 'Está vacía.'}`, 'Eliminar', true))) return;
             if (ED) ED.dirty = false;
             n.transcripts = n.transcripts.filter(x => x.id !== t.id); touch(n); view.tab = 'nota'; renderEditor();
           } })
@@ -3202,7 +3217,7 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
       // Solo si no empezaste a escribir la contraseña; si no, la versión nueva queda para la próxima vez.
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         const pw = document.querySelector('#lock input[type=password]');
-        if (had && !S && !(pw && pw.value)) location.reload();
+        if (had && !S && !bioBusy && !(pw && pw.value)) location.reload();
         had = true;
       });
     }
