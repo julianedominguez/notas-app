@@ -384,9 +384,9 @@ body.center-on .ed-body { padding-bottom: calc(45vh + env(safe-area-inset-bottom
 .app-mark { width: 30px; height: 30px; flex: none; display: block; }
 .app-mark svg { width: 100%; height: 100%; display: block; }
 .am-bg { fill: var(--accent); }
-.am-pg { fill: #ffffff; }
+.am-pg { fill: #ffffff; fill-opacity: .9; }
 .am-fd { fill: #c9d7fc; }
-.am-tx { fill: #3566f0; font: 600 14px/1 Inter, Roboto, system-ui, sans-serif; letter-spacing: -0.3px; }
+.am-tx { fill: #2453d9; font: 700 18px/1 Roboto, Inter, system-ui, sans-serif; }
 .search-btn, .sync-btn { position: relative; }
 .search-btn .dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); display: none; }
 .search-btn.has-filter .dot { display: block; }
