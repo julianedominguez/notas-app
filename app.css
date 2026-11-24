@@ -703,3 +703,25 @@ button, [data-tip] { -webkit-touch-callout: none; -webkit-user-select: none; use
   .pill .search-btn .dot { box-shadow: 0 0 0 2px #2a2a2a; }
   .pill .av-dot { border-color: #2a2a2a; }
 }
+
+/* 2.4.0: diseño "Agrupada". Cada mes es un bloque redondeado, como los ajustes del celu.
+   Para volver al diseño anterior alcanza con borrar este bloque. */
+:root { --list-bg: #f2f2f7; --card: #ffffff; --card-line: #e6e6ea; }
+@media (prefers-color-scheme: dark) { :root { --list-bg: #000000; --card: #1c1c1c; --card-line: #2c2c2c; } }
+.sidebar, .list { background: var(--list-bg); }
+.list { padding: 0 12px calc(88px + env(safe-area-inset-bottom)); }
+.month { background: var(--list-bg); font: 600 13px/1 var(--sans); letter-spacing: 0; color: var(--ink); padding: 18px 6px 8px; }
+.item { border-bottom: 0; background: var(--card); padding: 12px 14px; border-radius: 0; }
+.month + .item { border-top-left-radius: 14px; border-top-right-radius: 14px; }
+.item:has(+ .month), .item:last-child { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+.item + .item { box-shadow: inset 0 1px 0 var(--card-line); }
+.item-title { font-size: 15.5px; }
+.item-date { font-size: 12px; background: var(--surface-2); padding: 3px 8px; border-radius: 999px; color: var(--ink); align-self: center; }
+.item.active { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
+.item + .item.active { box-shadow: inset 3px 0 0 var(--accent), inset 0 1px 0 var(--card-line); }
+.item:hover { background: var(--surface-2); }
+.list.selecting .item.picked { background: var(--accent-soft); }
+.pill { background: var(--card); border-color: var(--card-line); }
+@media (prefers-color-scheme: dark) { .pill { background: #242424; border-color: #333; } }
+.fab { border-radius: 50%; }
+.ed-title { font-family: var(--sans) !important; font-weight: 700; letter-spacing: -.02em; }
