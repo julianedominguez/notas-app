@@ -725,3 +725,12 @@ button, [data-tip] { -webkit-touch-callout: none; -webkit-user-select: none; use
 @media (prefers-color-scheme: dark) { .pill { background: #242424; border-color: #333; } }
 .fab { border-radius: 50%; }
 .ed-title { font-family: var(--sans) !important; font-weight: 700; letter-spacing: -.02em; }
+
+/* 2.4.1: la lista nunca más ancha que la pantalla (títulos largos o el modo de selección la estiraban) */
+.app { grid-template-columns: 340px minmax(0, 1fr); }
+@media (max-width: 819px) { .app { grid-template-columns: minmax(0, 1fr); } }
+body.focus-mode .app { grid-template-columns: minmax(0, 1fr); }
+.sidebar, .list, .item, .item-row, .sel-bar, .topbar, .pill { min-width: 0; max-width: 100%; }
+.list { overflow-x: hidden; }
+.sel-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-snip { overflow-wrap: anywhere; }
