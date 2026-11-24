@@ -1,4 +1,4 @@
-const CACHE = 'notas-app-v1.9.2';
+const CACHE = 'notas-app-v1.9.3';
 // Las tipografías van en un caché aparte que no se borra al actualizar: se bajan una vez, cuando se eligen.
 const FONTS = 'notas-app-fonts-v1';
 const ASSETS = ['./', './index.html', './app.css', './app.js', './config.js', './vendor/editor.js', './vendor/mammoth.browser.min.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
@@ -24,21 +24,15 @@ self.addEventListener('fetch', e => {
     }));
     return;
   }
-  // La app (página, app.js, app.css, config.js) se pide primero a la red, así se ve la última versión al abrir.
-  // Si no hay conexión o tarda más de 3 segundos, se usa la copia guardada.
-  const url = new URL(req.url);
-  const shell = req.mode === 'navigate' || /\/(app\.js|app\.css|config\.js|index\.html)$/.test(url.pathname);
+  // Primero la copia guardada: la app abre al instante, también sin conexión.
+  // Cada versión nueva trae su propio service worker, que descarga todos los archivos juntos al instalarse;
+  // la app se recarga sola si la versión nueva llega mientras está en la pantalla de contraseña.
   const key = req.mode === 'navigate' ? './index.html' : req;
-  const fresh = () => fetch(req.mode === 'navigate' ? new Request('./index.html', { cache: 'no-cache' }) : new Request(req.url, { cache: 'no-cache' }));
   e.respondWith(caches.open(CACHE).then(async cache => {
     const cached = await cache.match(key, { ignoreSearch: true });
-    const net = fresh().then(res => { if (res.ok) cache.put(key, res.clone()); return res; }).catch(() => null);
-    if (shell) {
-      const timeout = new Promise(r => setTimeout(() => r(null), 3000));
-      const res = await Promise.race([net, timeout]);
-      if (res && res.ok) return res;
-      return cached || (await net) || new Response('Sin conexión', { status: 503 });
-    }
-    return cached || (await net) || new Response('Sin conexión', { status: 503 });
+    if (cached) return cached;
+    const res = await fetch(req).catch(() => null);
+    if (res && res.ok) cache.put(key, res.clone());
+    return res || new Response('Sin conexión', { status: 503 });
   }));
 });

@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '1.9.2';
+  const APP_VERSION = '1.9.3';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -474,7 +474,22 @@
     const data = await unseal(key, rec);
     return { sid, key, salt, iter: rec.iter, data };
   }
+  // El editor (500 KB) se carga después de mostrar la pantalla de contraseña, mientras escribís:
+  // así la app abre al instante y el editor ya está listo al entrar.
+  let edP = null;
+  function loadEditor() {
+    if (window.NotasEditor) return Promise.resolve();
+    if (!edP) edP = new Promise((res, rej) => {
+      const sc = document.createElement('script');
+      sc.src = 'vendor/editor.js';
+      sc.onload = () => res();
+      sc.onerror = () => { edP = null; rej(new Error('No se pudo cargar el editor')); };
+      document.head.append(sc);
+    });
+    return edP;
+  }
   async function enterSession(got, pass) {
+    await loadEditor();
     S = got;
     normalizeData(S.data, S.sid);
     // El índice guarda el nombre de cada sesión para mostrarlo al elegir la cuenta.
@@ -3179,11 +3194,17 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
       if (m && m.enabled && driveConfigured()) { loadGis().catch(() => {}); break; }
     }
     showLock();
+    setTimeout(() => loadEditor().catch(() => {}), 50);
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update().catch(() => {})).catch(() => {});
       // Si llega una versión nueva mientras la app está bloqueada, se recarga sola (no se pierde nada: no hay nada abierto).
       let had = !!navigator.serviceWorker.controller;
-      navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !S) location.reload(); had = true; });
+      // Solo si no empezaste a escribir la contraseña; si no, la versión nueva queda para la próxima vez.
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        const pw = document.querySelector('#lock input[type=password]');
+        if (had && !S && !(pw && pw.value)) location.reload();
+        had = true;
+      });
     }
   }
   boot();
