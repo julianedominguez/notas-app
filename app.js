@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.7.1';
+  const APP_VERSION = '2.8.0';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -1656,9 +1656,10 @@
       h('button', { class: 'btn ghost icon only-narrow', 'aria-label': 'Volver', html: I.back, onclick: goBack }),
       h('button', { class: 'btn ghost icon only-wide', id: 'focus-btn', title: PREF.focus ? 'Mostrar la lista de notas' : 'Modo foco: ocultar la lista de notas', 'aria-label': 'Modo foco', html: I.focus, onclick: toggleFocus }),
       h('span', { class: 'status', id: 'ed-status', text: 'Guardado' }),
-      h('button', { class: 'btn ghost icon', title: 'Apariencia y escritura', 'aria-label': 'Apariencia y escritura', html: '<span class="aa">Aa</span>', onclick: readingDialog }),
-      h('button', { class: 'btn ghost', title: 'Copiar esta nota como texto', onclick: () => exportDialog(n.id), html: I.copy + '<span class="label">Copiar para chat</span>' }),
-      h('button', { class: 'btn ghost icon', title: 'Más opciones', 'aria-label': 'Más opciones de la nota', html: I.menu, onclick: () => noteMenu(n) })
+      // En el celu, Apariencia y Copiar viven en el menú ⋯; en la PC quedan además a mano en la barra.
+      h('button', { class: 'btn ghost icon only-wide', title: 'Apariencia y escritura', 'aria-label': 'Apariencia y escritura', html: '<span class="aa">Aa</span>', onclick: readingDialog }),
+      h('button', { class: 'btn ghost only-wide', title: 'Copiar esta nota como texto', onclick: () => exportDialog(n.id), html: I.copy + '<span class="label">Copiar para chat</span>' }),
+      h('button', { class: 'btn ghost icon', title: 'Más opciones', 'aria-label': 'Más opciones de la nota', 'aria-haspopup': 'menu', html: I.menu, onclick: e => noteMenu(n, e.currentTarget) })
     );
   }
 
@@ -1829,16 +1830,63 @@
     return t;
   }
 
-  function noteMenu(n) {
-    const d = $('#dlg');
-    const go = fn => () => { d.close(); fn(); };
-    openDialog(d, n.title || 'Sin título', [h('div', { class: 'menu' },
-      h('button', { class: 'btn', text: 'Agregar contenido de un archivo .docx', onclick: go(() => docxIntoNote(n)) }),
-      h('button', { class: 'btn', text: 'Agregar transcripción desde un .txt', onclick: go(() => txtTranscripts(n)) }),
-      h('button', { class: 'btn', text: 'Ver índice de títulos', onclick: go(() => { if (!ED) switchTab(n, 'nota'); outlineDialog(); }) }),
-      h('hr'),
-      h('button', { class: 'btn danger', text: 'Eliminar nota', onclick: go(() => deleteNote(n)) })
-    )], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
+  // Menú ⋯ de la nota: una tarjeta flotante que sale del botón (como en ChatGPT), con íconos y grupos:
+  // lo de todos los días arriba, lo de agregar contenido en el medio y lo destructivo solo, al final y en rojo.
+  function noteMenu(n, anchor) {
+    const items = [
+      [I.copy, 'Copiar para chat', () => exportDialog(n.id)],
+      [I.outline, 'Índice de títulos', () => { if (!ED) switchTab(n, 'nota'); outlineDialog(); }],
+      [I.type, 'Apariencia y escritura', readingDialog],
+      null,
+      [I.docx, 'Agregar desde Word (.docx)', () => docxIntoNote(n)],
+      [I.textin, 'Agregar transcripción (.txt)', () => txtTranscripts(n)],
+      null,
+      [I.trash, 'Eliminar nota', () => deleteNote(n), 'danger']
+    ];
+    popMenu(anchor, n.title || 'Sin título', items);
+  }
+  function popMenu(anchor, title, items) {
+    const old = document.querySelector('dialog.pop');
+    if (old) old.remove();
+    const d = h('dialog', { class: 'pop', 'aria-label': title });
+    let closing = false;
+    const close = after => {
+      if (closing) return;
+      closing = true;
+      const done = () => { d.close(); d.remove(); if (after) after(); };
+      if (calm()) { done(); return; }
+      d.classList.add('out');
+      // La acción no espera a que termine el fundido: se siente inmediata.
+      if (after) { setTimeout(after, 0); after = null; }
+      setTimeout(done, 130);
+    };
+    const list = h('div', { class: 'pop-in', role: 'menu' },
+      title ? h('div', { class: 'pop-t', text: title }) : null,
+      ...items.map(it => it ? h('button', { class: 'pop-i' + (it[3] ? ' ' + it[3] : ''), type: 'button', role: 'menuitem', onclick: () => close(it[2]) },
+        h('span', { class: 'pop-ic', html: it[0] }), h('span', { class: 'pop-l', text: it[1] })) : h('div', { class: 'pop-sep', role: 'separator' })));
+    d.append(list);
+    d.addEventListener('click', e => { if (e.target === d) close(); });
+    d.addEventListener('cancel', e => { e.preventDefault(); close(); });
+    document.body.append(d);
+    // Se ubica debajo del botón, alineado a su borde derecho, sin salirse de la pantalla.
+    const r = anchor ? anchor.getBoundingClientRect() : { right: innerWidth - 8, bottom: 56, top: 8 };
+    d.showModal();
+    const w = d.offsetWidth, hh = d.offsetHeight;
+    const vh = window.visualViewport ? visualViewport.height : innerHeight;
+    let top = r.bottom + 6;
+    if (top + hh > vh - 8) top = Math.max(8, r.top - hh - 6);
+    d.style.top = top + 'px';
+    d.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + 'px';
+    d.style.transformOrigin = top < r.top ? 'bottom right' : 'top right';
+    list.querySelector('.pop-i').focus({ preventScroll: true });
+    // Flechas para moverse con el teclado en la PC.
+    list.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      e.preventDefault();
+      const bs = [...list.querySelectorAll('.pop-i')];
+      const i = bs.indexOf(document.activeElement);
+      bs[(i + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length].focus();
+    });
   }
 
   /* Pestaña Nota: título, fecha, etiquetas y texto con formato */
@@ -2020,7 +2068,7 @@
     const sep = () => h('span', { class: 'fsep', 'aria-hidden': 'true' });
     const c = e => e.chain().focus();
     const T = (k, label, title, fn) => { const b = B(k, label, title, fn); b.classList.add('tb'); return b; };
-    return h('div', { class: 'fmt-bar' + (PREF.fmtMin ? ' min' : ''), role: 'toolbar', 'aria-label': 'Formato' },
+    const bar = h('div', { class: 'fmt-bar' + (PREF.fmtMin ? ' min' : ''), role: 'toolbar', 'aria-label': 'Formato' },
       T('tRowAdd', '+ Fila', 'Agregar fila debajo', e => c(e).addRowAfter().run()),
       T('tColAdd', '+ Columna', 'Agregar columna a la derecha', e => c(e).addColumnAfter().run()),
       T('tRowDel', '− Fila', 'Quitar esta fila', e => c(e).deleteRow().run()),
@@ -2053,6 +2101,12 @@
       // Solo en Android (barra abajo): achica la barra a un botón chico pegado a la derecha.
       B('fmin', '', 'Achicar o mostrar la barra de formato', () => toggleFmtMin(), I.fmtmin)
     );
+    // Un toque en cualquier parte de la barra (entre botones, en los separadores o justo al borde) es de la barra:
+    // no mueve el cursor ni hace saltar la pantalla. Deslizarla de costado sigue funcionando.
+    bar.addEventListener('mousedown', e => e.preventDefault());
+    bar.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') e.preventDefault(); });
+    bar.addEventListener('click', e => e.stopPropagation());
+    return bar;
   }
   function toggleFmtMin() {
     PREF.fmtMin = !PREF.fmtMin;
@@ -2633,7 +2687,7 @@
     // Con un menú lateral abierto, la barra toma el color del menú (así se ve de arriba a abajo, como en ChatGPT).
     // Mientras el menú entra o sale queda el color de la pantalla: un solo cambio, sin pasar por el oscurecido de los diálogos.
     const dr = document.getElementById('drawer');
-    const dlgOpen = [...document.querySelectorAll('dialog')].some(d => d.open && d !== dr);
+    const dlgOpen = [...document.querySelectorAll('dialog')].some(d => d.open && d !== dr && !d.classList.contains('pop'));
     if (dr && dr.open && !dlgOpen) { if (dr.classList.contains('in') && dr.firstChild) [r, g, b] = rgbOf(getComputedStyle(dr.firstChild).backgroundColor); }
     // Un diálogo abierto oscurece la pantalla: la barra también.
     else if (dlgOpen) { const a = 0.45; r = r * (1 - a) + 10 * a; g = g * (1 - a) + 8 * a; b = b * (1 - a) + 5 * a; }

@@ -1029,3 +1029,70 @@ body.fmt-bottom.kbd:not(.center-on) .ed-body { padding-bottom: calc(4em + 72px);
 
 /* 2.7.1: el gesto de cerrar los menús se escucha en todo el diálogo (menú y zona oscura) */
 .drawer { touch-action: pan-y; }
+
+/* 2.8.0: barra de formato pegada al teclado (estilo Google Docs) y menú ⋯ flotante (estilo ChatGPT).
+   Para volver a la 2.7.1 alcanza con revertir el commit. */
+/* Color del teclado de Google (Gboard). La web no puede leer el color real del teclado: si usás un tema
+   con colores propios, la barra queda con estos tonos de base. */
+:root { --kbd-bg: #eef0f4; --kbd-ink: #1f1f1f; --kbd-line: #d7dae0; }
+@media (prefers-color-scheme: dark) { :root { --kbd-bg: #171a1f; --kbd-ink: #e3e3e3; --kbd-line: #2a2e35; } }
+
+body.fmt-bottom .fmt-bar {
+  left: 0; right: 0; bottom: 0; height: 52px; padding: 0 0 0 4px;
+  border: 0; border-radius: 0; background: var(--kbd-bg); color: var(--kbd-ink); box-shadow: none;
+}
+@media (prefers-color-scheme: dark) { body.fmt-bottom .fmt-bar { background: var(--kbd-bg); border: 0; box-shadow: none; } }
+body.fmt-bottom .fmt-bar .fb { color: var(--kbd-ink); }
+body.fmt-bottom .fmt-bar .fsep { background: var(--kbd-line); }
+/* Zona de toque extra arriba de la barra (10 px invisibles): un toque que cae justo encima no se va al texto */
+body.fmt-bottom .fmt-bar, body.fmt-bottom .fmt-bar.min {
+  box-sizing: border-box; height: 62px; padding-top: 10px;
+  background: linear-gradient(transparent 10px, var(--kbd-bg) 10px);
+}
+@media (prefers-color-scheme: dark) { body.fmt-bottom .fmt-bar { background: linear-gradient(transparent 10px, var(--kbd-bg) 10px); } }
+body.fmt-bottom .fb[data-k=fmin],
+body.fmt-bottom .fmt-bar .fb[data-k=fmin] {
+  height: 52px; border-radius: 0; background: var(--kbd-bg); box-shadow: -16px 0 12px -4px var(--kbd-bg);
+}
+@media (prefers-color-scheme: dark) { body.fmt-bottom .fb[data-k=fmin] { background: var(--kbd-bg); box-shadow: -16px 0 12px -4px var(--kbd-bg); } }
+/* Plegada: una pestaña chica que sale del teclado, en la esquina derecha */
+body.fmt-bottom .fmt-bar.min { left: auto; right: 0; width: 56px; height: 54px; border-radius: 0; overflow: hidden; }
+body.fmt-bottom .fmt-bar.min .fb[data-k=fmin] { width: 56px; height: 44px; border-radius: 14px 0 0 0; box-shadow: none; margin: 0; }
+body.fmt-bottom.kbd:not(.center-on) .ed-body { padding-bottom: calc(4em + 60px); }
+@keyframes fmt-up { from { opacity: 0; transform: translateY(8px); } }
+@keyframes fmt-min { from { opacity: .5; } }
+@keyframes fmt-max { from { opacity: 0; clip-path: inset(0 0 0 85%); } }
+
+/* Menú ⋯ flotante */
+dialog.pop {
+  position: fixed; inset: auto; margin: 0; padding: 0; border: 0; background: transparent; color: var(--ink);
+  max-width: calc(100vw - 16px); overflow: visible;
+}
+dialog.pop::backdrop { background: transparent; }
+.pop-in {
+  min-width: 244px; max-width: 320px; padding: 6px; border-radius: 22px;
+  background: var(--card); border: 1px solid var(--card-line);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .08), 0 12px 32px rgba(0, 0, 0, .16);
+  display: flex; flex-direction: column;
+}
+@media (prefers-color-scheme: dark) { .pop-in { background: #2f2f2f; border-color: #3a3a3a; box-shadow: 0 12px 32px rgba(0, 0, 0, .55); } }
+.pop-t { padding: 10px 14px 6px; font-size: 13.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pop-i {
+  display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 0 14px; width: 100%;
+  border: 0; border-radius: 14px; background: none; color: var(--ink); font: 500 15px/1.2 var(--sans); text-align: left; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pop-i:hover, .pop-i:focus-visible { background: var(--surface-2); outline: none; }
+@media (prefers-color-scheme: dark) { .pop-i:hover, .pop-i:focus-visible { background: #3a3a3a; } }
+.pop-i:active { background: var(--accent-soft); }
+.pop-ic { width: 22px; height: 22px; flex: none; display: grid; place-items: center; color: var(--ink); }
+.pop-ic svg { width: 22px; height: 22px; }
+.pop-i.danger, .pop-i.danger .pop-ic { color: var(--danger); }
+.pop-sep { height: 1px; background: var(--card-line); margin: 5px 12px; }
+@media (prefers-color-scheme: dark) { .pop-sep { background: #3d3d3d; } }
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.calm) dialog.pop[open] .pop-in { animation: pop-in 170ms cubic-bezier(.05, .7, .1, 1); transform-origin: inherit; }
+  html:not(.calm) dialog.pop.out .pop-in { animation: pop-out 120ms cubic-bezier(.3, 0, .8, .15) forwards; transform-origin: inherit; }
+}
+@keyframes pop-in { from { opacity: 0; transform: scale(.9); } }
+@keyframes pop-out { to { opacity: 0; transform: scale(.95); } }
