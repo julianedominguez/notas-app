@@ -1295,3 +1295,51 @@ body.kbd .ed-head::after { height: 14px; }
 .sec-add { margin-top: 10px; padding-top: 0; border-top: 0; }
 .sec-add[hidden] { display: none; }
 @media (prefers-reduced-motion: no-preference) { html:not(.calm) .sec-star.m-pop svg { animation: m-pop 380ms var(--ease-out); } }
+
+/* 2.10.0: hojas de secciones y categorías sin selección de texto, íconos elegibles, agregar sin redundancia */
+dialog.sheet .dlg-content { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+dialog.sheet input { -webkit-user-select: text; user-select: text; }
+.sec-row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.sec-icbtn {
+  width: 40px; height: 40px; flex: none; margin: 0 6px 0 0; border: 0; border-radius: 12px; cursor: pointer;
+  background: var(--surface-2); color: var(--ink); display: grid; place-items: center;
+}
+.sec-icbtn svg { width: 22px; height: 22px; }
+.sec-icbtn:active { background: var(--accent-soft); }
+.sec-row.main .sec-icbtn { background: var(--accent-soft); }
+.sec-go.static { cursor: default; }
+.sec-row.fixed { opacity: .9; }
+.cats .sec-row { padding-left: 8px; }
+.cat-name {
+  font: 500 16px/1.2 var(--sans); color: var(--ink); background: transparent; border: 0; border-bottom: 1px dashed transparent;
+  padding: 2px 0; width: 100%; min-width: 0; border-radius: 0; outline: none;
+}
+.cat-name:focus { border-bottom-color: var(--accent); }
+.sec-addrow {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; margin-top: 4px; padding: 0 10px; border: 0; border-radius: 14px;
+  background: none; color: var(--accent-text); font: 600 15.5px/1 var(--sans); cursor: pointer; text-align: left;
+}
+.sec-addrow:active { background: var(--surface-2); }
+.sec-addic { width: 40px; height: 40px; border-radius: 12px; border: 1.5px dashed currentColor; display: grid; place-items: center; }
+.sec-addic svg { width: 20px; height: 20px; }
+.sec-add { margin-top: 6px; display: flex; flex-direction: column; gap: 10px; }
+.ic-chip { height: 38px; padding: 0 14px 0 10px; gap: 8px; border-radius: 12px; }
+.ic-chip .chip-ic { width: 20px; height: 20px; display: grid; place-items: center; color: var(--ink); }
+.ic-chip .chip-ic svg { width: 19px; height: 19px; }
+.ic-chip.new { border-style: dashed; color: var(--accent-text); }
+.ic-chip.new .chip-ic { color: var(--accent-text); }
+.sec-newform { display: flex; align-items: center; gap: 8px; }
+.sec-newform[hidden] { display: none; }
+.sec-newform input { flex: 1; min-width: 0; }
+.sec-newform .sec-icbtn { margin: 0; }
+.sec-hint { display: block; }
+.sec-hint-star { margin-right: 2px; }
+/* Grilla de íconos */
+.pop-icons .pop-in { min-width: 0; width: 280px; padding: 8px 10px 10px; }
+.ic-cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.ic-cell { height: 52px; border: 0; border-radius: 14px; background: none; color: var(--ink); display: grid; place-items: center; cursor: pointer; }
+.ic-cell svg { width: 24px; height: 24px; }
+.ic-cell:hover, .ic-cell:focus-visible { background: var(--surface-2); outline: none; }
+.ic-cell.on { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.secs .cat-name, .secs .cat-name:focus { border: 0; border-bottom: 1.5px dashed transparent; border-radius: 0; background: transparent; box-shadow: none; padding: 2px 0; min-height: 0; height: auto; }
+.secs .cat-name:focus { border-bottom-color: var(--accent); }

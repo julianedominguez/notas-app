@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.9.1';
+  const APP_VERSION = '2.10.0';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -52,6 +52,19 @@
     cloud2: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.2 18.5h9.9a3.9 3.9 0 0 0 .5-7.77A5.6 5.6 0 0 0 6.9 9.8a4.35 4.35 0 0 0 .3 8.7z"/></svg>',
     timer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M10 2.5h4"/></svg>',
     pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
+    ic_list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.8" cy="6.5" r=".9"/><circle cx="4.8" cy="12" r=".9"/><circle cx="4.8" cy="17.5" r=".9"/></svg>',
+    ic_bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17.5h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2v1.5h5V16c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></svg>',
+    ic_chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5h15v10.5h-8l-4.5 3.5V16h-2.5z"/></svg>',
+    ic_check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.5 2.5 4.9-5"/></svg>',
+    ic_cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>',
+    ic_people: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.5 14.8c1.6.6 2.7 2.1 3 4.7"/></svg>',
+    ic_flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 21V4M5.5 4.5h11l-2 4 2 4h-11"/></svg>',
+    ic_book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c2.6-1.2 5.1-1.2 7.5.5v14c-2.4-1.7-4.9-1.7-7.5-.5zM19.5 5.5c-2.6-1.2-5.1-1.2-7.5.5v14c2.4-1.7 4.9-1.7 7.5-.5z"/></svg>',
+    ic_chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M7 16.5v-5M12 16.5V7M17 16.5v-8"/></svg>',
+    ic_pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',
+    ic_heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg>',
+    ic_spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6-5.6-1.9 5.6-1.9z"/><path d="M18.5 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>',
+    ic_clip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 11.5l-7.6 7.6a4.8 4.8 0 0 1-6.8-6.8l7.9-7.9a3.2 3.2 0 0 1 4.5 4.5l-7.8 7.8a1.6 1.6 0 0 1-2.3-2.3l7.2-7.2"/></svg>',
     share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11M7.5 8 12 3.5 16.5 8"/><path d="M6 11.5H5v9h14v-9h-1"/></svg>',
     importi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14.5v-11M7.5 10 12 14.5 16.5 10"/><path d="M5 15.5v5h14v-5"/></svg>',
     mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/></svg>',
@@ -893,11 +906,114 @@
     const t = (n.transcripts || []).find(x => x.id === id);
     return t ? secLabel(n, t) : 'Sección';
   }
-  function secIcon(n, id) {
-    if (id === 'nota') return I.note;
-    const t = (n.transcripts || []).find(x => x.id === id);
-    return t && catOf(t) === TR ? I.mic : I.tag;
+  // Íconos elegibles para secciones y categorías.
+  const ICON_KEYS = ['note', 'mic', 'tag', 'list', 'chat', 'bulb', 'check', 'cal', 'people', 'flag', 'book', 'chart', 'pin', 'heart', 'spark', 'clip'];
+  const iconSvg = k => (k && (I['ic_' + k] || I[k])) || null;
+  // Ícono de una categoría: el elegido o el de siempre (micrófono para Transcripción, etiqueta para las demás).
+  function catIconKey(cat) {
+    if (cat === TR) return (S.data.trIcon) || 'mic';
+    const c = (S.data.cats || []).find(x => x.id === cat);
+    return (c && c.icon) || 'tag';
   }
+  function secIconKey(n, id) {
+    if (id === 'nota') return n.notaIcon || 'note';
+    const t = (n.transcripts || []).find(x => x.id === id);
+    return t ? (t.icon || catIconKey(catOf(t))) : 'tag';
+  }
+  function secIcon(n, id) { return iconSvg(secIconKey(n, id)) || I.tag; }
+  // La principal (la que se abre al entrar) es independiente del orden.
+  function mainOf(n) {
+    const ids = secIds(n);
+    if (n.main && ids.includes(n.main)) return n.main;
+    return Array.isArray(n.order) && ids.includes(n.order[0]) ? n.order[0] : 'nota';
+  }
+
+  // Selector de ícono: una grilla flotante que sale del ícono tocado.
+  function iconPicker(anchor, current, onPick) {
+    const old = document.querySelector('dialog.pop');
+    if (old) old.remove();
+    const d = h('dialog', { class: 'pop pop-icons', 'aria-label': 'Elegir ícono' });
+    const close = () => { if (!d.isConnected) return; if (calm()) { d.close(); d.remove(); return; } d.classList.add('out'); setTimeout(() => { d.close(); d.remove(); }, 130); };
+    const grid = h('div', { class: 'pop-in ic-grid', role: 'listbox' },
+      h('div', { class: 'pop-t', text: 'Ícono' }),
+      h('div', { class: 'ic-cells' }, ICON_KEYS.map(k => h('button', { class: 'ic-cell' + (k === current ? ' on' : ''), type: 'button', role: 'option', 'aria-selected': String(k === current), 'aria-label': k, html: iconSvg(k),
+        onclick: () => { onPick(k); close(); } }))));
+    d.append(grid);
+    d.addEventListener('click', e => { if (e.target === d) close(); });
+    d.addEventListener('cancel', e => { e.preventDefault(); close(); });
+    document.body.append(d);
+    d.showModal();
+    const r = anchor.getBoundingClientRect(), w = d.offsetWidth, hh = d.offsetHeight;
+    const vh = window.visualViewport ? visualViewport.height : innerHeight;
+    let top = r.bottom + 6;
+    if (top + hh > vh - 8) top = Math.max(8, r.top - hh - 6);
+    d.style.top = top + 'px';
+    d.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left - 8)) + 'px';
+    d.style.transformOrigin = (top < r.top ? 'bottom' : 'top') + ' left';
+    const on = grid.querySelector('.ic-cell.on') || grid.querySelector('.ic-cell');
+    on.focus({ preventScroll: true });
+  }
+
+  // Lista que se ordena arrastrando la manija ≡: la fila va pegada al dedo y las demás se corren.
+  function dragList(body, onMove) {
+    let drag = null;
+    body.addEventListener('pointerdown', e => {
+      const grip = e.target.closest('.sec-grip');
+      if (!grip || e.button) return;
+      e.preventDefault();
+      const row = grip.closest('.sec-row');
+      try { grip.setPointerCapture(e.pointerId); } catch { /* sin captura */ }
+      const rows = [...body.querySelectorAll('.sec-row')];
+      drag = { row, pid: e.pointerId, y0: e.clientY, h: row.offsetHeight, from: rows.indexOf(row), to: rows.indexOf(row), rows, tops: rows.map(r => r.offsetTop) };
+      row.classList.add('lift');
+      body.classList.add('dragging');
+      if (navigator.vibrate) try { navigator.vibrate(12); } catch { /* sin vibración */ }
+    });
+    body.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.pid) return;
+      e.preventDefault();
+      const lim0 = drag.tops[0] - drag.tops[drag.from], lim1 = drag.tops[drag.rows.length - 1] - drag.tops[drag.from];
+      const dy = Math.max(lim0 - 8, Math.min(lim1 + 8, e.clientY - drag.y0));
+      drag.row.style.transform = `translateY(${dy}px)`;
+      const center = drag.tops[drag.from] + drag.h / 2 + dy;
+      let to = 0;
+      drag.tops.forEach((t, i) => { if (center > t + drag.h / 2) to = i; });
+      if (center <= drag.tops[0] + drag.h / 2) to = 0;
+      drag.to = Math.max(0, Math.min(drag.rows.length - 1, to));
+      drag.rows.forEach((r, i) => {
+        if (r === drag.row) return;
+        let shift = 0;
+        if (drag.from < drag.to && i > drag.from && i <= drag.to) shift = -drag.h;
+        if (drag.from > drag.to && i < drag.from && i >= drag.to) shift = drag.h;
+        r.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    });
+    const drop = e => {
+      if (!drag || e.pointerId !== drag.pid) return;
+      const { row, from, to, rows } = drag;
+      drag = null;
+      body.classList.remove('dragging');
+      row.classList.remove('lift');
+      for (const r of rows) r.style.transform = '';
+      onMove(row.dataset.id, from, to);
+    };
+    body.addEventListener('pointerup', drop);
+    body.addEventListener('pointercancel', drop);
+    // Mantener apretado no selecciona texto ni abre el menú del sistema.
+    body.addEventListener('contextmenu', e => e.preventDefault());
+    body.addEventListener('selectstart', e => { if (!e.target.closest('input')) e.preventDefault(); });
+  }
+  const GRIP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 9.5h14M5 14.5h14"/></svg>';
+  // Animación de reacomodo (las filas se deslizan a su lugar nuevo).
+  function flipRows(body, before) {
+    if (!before || calm()) return;
+    for (const r of body.querySelectorAll('.sec-row')) {
+      const y0 = before.get(r.dataset.id);
+      const dy = y0 == null ? 0 : y0 - r.getBoundingClientRect().top;
+      if (dy) r.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.2, 0, 0, 1)' });
+    }
+  }
+  const rowTops = body => new Map([...body.querySelectorAll('.sec-row')].map(r => [r.dataset.id, r.getBoundingClientRect().top]));
   function secLabel(n, t) {
     if (t.name) return t.name;
     const same = n.transcripts.filter(x => catOf(x) === catOf(t));
@@ -918,41 +1034,89 @@
     return changed;
   }
 
+  // Categorías de secciones (valen para todas las notas), con el mismo estilo que la hoja de secciones:
+  // ícono elegible, nombre editable, manija para ordenar y quitar al final de cada fila.
   function catsDialog() {
-    const d = $('#dlg');
-    const list = h('div', { class: 'cat-list' });
-    const input = h('input', { type: 'text', placeholder: 'Nueva categoría (ej. Resumen)', autocomplete: 'off', maxlength: '40' });
-    function draw() {
-      list.replaceChildren(
-        h('div', { class: 'cat-row' }, h('span', { class: 'cat-n', text: 'Transcripción' }), h('span', { class: 'muted small', text: 'Texto plano, fija' })),
-        ...liveCats().map(c => {
-          const nm = h('input', { type: 'text', value: c.name, 'aria-label': 'Nombre de la categoría', maxlength: '40' });
-          nm.addEventListener('change', () => {
-            const v = nm.value.trim();
-            const other = findCatByName(v);
-            if (!v || (other && other !== c.id)) { nm.value = c.name; toast(v ? 'Ya existe una categoría con ese nombre.' : 'El nombre no puede quedar vacío.'); return; }
-            c.name = v; c.updatedAt = Date.now(); scheduleSave(); if (ui.current) renderEditor();
-          });
-          return h('div', { class: 'cat-row' }, nm, h('button', { class: 'btn small danger', text: 'Quitar', onclick: () => {
-            if (catInUse(c.id)) { toast('Hay notas con secciones de esta categoría. Borrá esas secciones primero.', 5000); return; }
-            c.deleted = true; c.updatedAt = Date.now(); scheduleSave(); draw();
-          } }));
-        })
-      );
-    }
-    const add = () => {
-      const v = input.value.trim();
-      if (!v) return;
-      if (findCatByName(v)) { toast('Ya existe una categoría con ese nombre.'); return; }
-      addCat(v); input.value = ''; draw();
+    const d = $('#dlg2');
+    const body = h('div', { class: 'secs cats', role: 'list' });
+    let armed = null;
+    const touchCats = () => { scheduleSave(); if (ui.current) renderEditor(); };
+    const draw = flip => {
+      const before = flip ? rowTops(body) : null;
+      const cats = liveCats();
+      const tr = h('div', { class: 'sec-row fixed', 'data-id': TR, role: 'listitem' },
+        h('button', { class: 'sec-ic sec-icbtn', type: 'button', title: 'Cambiar el ícono', 'aria-label': 'Cambiar el ícono de Transcripción', html: iconSvg(catIconKey(TR)),
+          onclick: e => iconPicker(e.currentTarget, catIconKey(TR), k => { S.data.trIcon = k; touchCats(); draw(); }) }),
+        h('div', { class: 'sec-go static' }, h('span', { class: 'sec-tx' }, h('span', { class: 'sec-n', text: 'Transcripción' }), h('span', { class: 'sec-s', text: 'Fija · Para pegar lo que se habló' }))));
+      body.replaceChildren(tr, ...cats.map((c, i) => {
+        const nm = h('input', { class: 'cat-name', type: 'text', value: c.name, 'aria-label': 'Nombre de la categoría', maxlength: '40', enterkeyhint: 'done' });
+        nm.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); nm.blur(); } });
+        nm.addEventListener('change', () => {
+          const v = nm.value.trim();
+          const other = findCatByName(v);
+          if (!v || (other && other !== c.id)) { nm.value = c.name; toast(v ? 'Ya existe una categoría con ese nombre.' : 'El nombre no puede quedar vacío.'); return; }
+          c.name = v; c.updatedAt = Date.now(); touchCats();
+        });
+        const used = liveNotes().reduce((k, n) => k + (n.transcripts || []).filter(t => catOf(t) === c.id).length, 0);
+        const isArmed = armed === c.id;
+        return h('div', { class: 'sec-row', 'data-id': c.id, role: 'listitem' },
+          h('button', { class: 'sec-ic sec-icbtn', type: 'button', title: 'Cambiar el ícono', 'aria-label': 'Cambiar el ícono de ' + c.name, html: iconSvg(catIconKey(c.id)),
+            onclick: e => iconPicker(e.currentTarget, catIconKey(c.id), k => { c.icon = k; c.updatedAt = Date.now(); touchCats(); draw(); }) }),
+          h('div', { class: 'sec-go' }, h('span', { class: 'sec-tx' }, nm, h('span', { class: 'sec-s', text: used ? `En ${used} ${used === 1 ? 'sección' : 'secciones'}` : 'Sin usar' }))),
+          h('button', { class: 'sec-b del' + (isArmed ? ' armed' : ''), type: 'button', title: isArmed ? 'Tocá de nuevo para quitar' : 'Quitar categoría', 'aria-label': isArmed ? 'Confirmar: quitar categoría' : 'Quitar categoría',
+            onclick: () => {
+              if (used) { toast('Hay secciones de esta categoría. Borralas primero desde cada nota.', 5000); return; }
+              if (armed !== c.id) { armed = c.id; draw(); return; }
+              c.deleted = true; c.updatedAt = Date.now(); armed = null; touchCats(); draw(true);
+            } }, isArmed ? h('span', { text: 'Quitar' }) : h('span', { class: 'sec-b-ic', html: I.trash })),
+          h('span', { class: 'sec-grip', role: 'button', tabindex: '0', title: 'Arrastrar para ordenar', 'aria-label': `Mover ${c.name}`, html: GRIP,
+            onkeydown: e => { const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1; if (to < 0 || to >= cats.length) return; e.preventDefault(); move(c.id, i + 1, to + 1); } }));
+      }));
+      flipRows(body, before);
     };
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+    // Las posiciones incluyen la fila fija de Transcripción (posición 0), que no se mueve.
+    const move = (id, from, to) => {
+      to = Math.max(1, to);
+      if (from === to) { draw(true); return; }
+      const cats = liveCats();
+      const c = cats.find(x => x.id === id);
+      const rest = cats.filter(x => x !== c);
+      rest.splice(to - 1, 0, c);
+      const dead = (S.data.cats || []).filter(x => x.deleted);
+      const now = Date.now();
+      rest.forEach((x, k) => { x.updatedAt = now + k; });
+      S.data.cats = [...rest, ...dead];
+      touchCats();
+      draw(true);
+    };
+    dragList(body, move);
+    let newIcon = 'tag';
+    const input = h('input', { type: 'text', placeholder: 'Nombre (ej. Resumen)', autocomplete: 'off', maxlength: '40', 'aria-label': 'Nombre de la categoría nueva' });
+    const icBtn = h('button', { class: 'sec-ic sec-icbtn', type: 'button', title: 'Elegir ícono', 'aria-label': 'Elegir ícono', html: iconSvg(newIcon),
+      onclick: e => iconPicker(e.currentTarget, newIcon, k => { newIcon = k; icBtn.innerHTML = iconSvg(k); }) });
+    const create = () => {
+      const v = input.value.trim();
+      if (!v) { input.focus(); return; }
+      if (findCatByName(v)) { toast('Ya existe una categoría con ese nombre.'); return; }
+      const id = addCat(v);
+      const c = S.data.cats.find(x => x.id === id);
+      if (c) { c.icon = newIcon; c.updatedAt = Date.now(); }
+      input.value = ''; newIcon = 'tag'; icBtn.innerHTML = iconSvg(newIcon);
+      touchCats(); draw(); form.hidden = true; addRow.setAttribute('aria-expanded', 'false');
+    };
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
+    const form = h('div', { class: 'sec-newform', hidden: true }, icBtn, input, h('button', { class: 'btn primary small', type: 'button', text: 'Crear', onclick: create }));
+    const addRow = h('button', { class: 'sec-addrow', type: 'button', 'aria-expanded': 'false', onclick: () => {
+      form.hidden = !form.hidden; addRow.setAttribute('aria-expanded', String(!form.hidden));
+      if (!form.hidden) { play(form, 'm-drop'); input.focus(); }
+    } }, h('span', { class: 'sec-addic', html: I.plus }), h('span', { text: 'Nueva categoría' }));
     openDialog(d, 'Categorías de secciones', [
-      h('p', { class: 'muted small', text: 'Las categorías valen para todas las notas. En cada nota, "+ Sección" agrega una pestaña de la categoría que elijas. Las secciones nuevas tienen formato, como la pestaña Nota.' }),
-      list,
-      h('div', { class: 'row' }, input, h('button', { class: 'btn', text: 'Agregar', onclick: add }))
-    ], [h('button', { class: 'btn', text: 'Cerrar', onclick: () => d.close() })]);
+      h('p', { class: 'sec-hint', text: 'Valen para todas las notas. El ícono de la categoría es el que toman sus secciones nuevas.' }),
+      body, addRow, form
+    ], [h('button', { class: 'btn primary', type: 'button', text: 'Listo', onclick: () => d.close() })]);
+    d.classList.add('sheet');
     draw();
+    d.addEventListener('close', function onClose() { if (d.open) return; d.removeEventListener('close', onClose); d.classList.remove('sheet'); });
   }
 
   /* ---------- App ---------- */
@@ -1544,7 +1708,7 @@
     if (prev && prev !== id) { destroyEditor(); pruneNote(prev); }
     ui.current = id;
     const on = getNote(id);
-    view.tab = tab || (on ? secIds(on)[0] : 'nota');
+    view.tab = tab || (on ? mainOf(on) : 'nota');
     renderEditor();
     renderList();
     if (narrow()) {
@@ -1883,106 +2047,81 @@
   }
 
   /* ---------- Secciones: ordenar, elegir la principal, agregar y borrar ---------- */
-  // Hoja de secciones, como la edición de carpetas de Outlook: estrella a la izquierda (una sola principal,
-  // la que se abre al entrar) y manija ≡ a la derecha para arrastrar y ordenar. Borrar queda dentro de cada sección.
+  // Hoja de secciones, como la edición de carpetas de Outlook: estrella (una sola principal, la que se abre al
+  // entrar, sin importar el orden), ícono elegible, y manija ≡ para arrastrar y ordenar. Borrar queda dentro de cada sección.
   function sectionsSheet(n, toAdd) {
     commitEditor();
     const d = $('#dlg2');
     let changed = false;
     const body = h('div', { class: 'secs', role: 'list' });
     const draw = flip => {
-      const before = flip ? new Map([...body.querySelectorAll('.sec-row')].map(r => [r.dataset.id, r.getBoundingClientRect().top])) : null;
-      const ids = secIds(n);
+      const before = flip ? rowTops(body) : null;
+      const ids = secIds(n), main = mainOf(n);
       body.replaceChildren(...ids.map((id, i) => {
         const t = id === 'nota' ? null : n.transcripts.find(x => x.id === id);
         const sub = (t ? catName(catOf(t)) : 'Texto de la nota') + ' · ' + wordsLabel(t ? t.text : n.text);
-        const main = i === 0;
-        return h('div', { class: 'sec-row' + (main ? ' main' : ''), 'data-id': id, role: 'listitem' },
-          h('button', { class: 'sec-star' + (main ? ' on' : ''), type: 'button', 'aria-pressed': String(main),
-            title: main ? 'Principal: se abre al entrar' : 'Marcar como principal', 'aria-label': main ? 'Sección principal' : 'Marcar como principal',
-            html: I.star, onclick: () => { if (!main) move(id, 0, true); } }),
+        const isMain = id === main;
+        return h('div', { class: 'sec-row' + (isMain ? ' main' : ''), 'data-id': id, role: 'listitem' },
+          h('button', { class: 'sec-star' + (isMain ? ' on' : ''), type: 'button', 'aria-pressed': String(isMain),
+            title: isMain ? 'Principal: se abre al entrar' : 'Marcar como principal', 'aria-label': isMain ? 'Sección principal' : 'Marcar como principal',
+            html: I.star, onclick: e => { if (isMain) return; n.main = id; changed = true; touch(n); draw(); const st = body.querySelector(`.sec-row[data-id="${CSS.escape(id)}"] .sec-star`); if (st) play(st, 'm-pop'); } }),
+          h('button', { class: 'sec-ic sec-icbtn', type: 'button', title: 'Cambiar el ícono', 'aria-label': 'Cambiar el ícono de ' + secName(n, id), html: secIcon(n, id),
+            onclick: e => iconPicker(e.currentTarget, secIconKey(n, id), k => { if (id === 'nota') n.notaIcon = k; else t.icon = k; changed = true; touch(n); draw(); }) }),
           h('button', { class: 'sec-go', type: 'button', title: 'Abrir esta sección', onclick: () => { d.close(); if (view.tab !== id) switchTab(n, id); else if (changed && ui.current === n.id) renderEditor(); } },
-            h('span', { class: 'sec-ic', html: secIcon(n, id) }),
-            h('span', { class: 'sec-tx' }, h('span', { class: 'sec-n', text: secName(n, id) }), h('span', { class: 'sec-s', text: sub }))),
-          h('span', { class: 'sec-grip', role: 'button', tabindex: '0', title: 'Arrastrar para ordenar', 'aria-label': `Mover ${secName(n, id)}. Flechas arriba y abajo para ordenar`,
-            onkeydown: e => { if (e.key === 'ArrowUp' && i > 0) { e.preventDefault(); move(id, i - 1); focusGrip(id); } else if (e.key === 'ArrowDown' && i < ids.length - 1) { e.preventDefault(); move(id, i + 1); focusGrip(id); } } },
-            h('span', { html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 9.5h14M5 14.5h14"/></svg>' })));
+            h('span', { class: 'sec-tx' }, h('span', { class: 'sec-n', text: secName(n, id) }), h('span', { class: 'sec-s', text: (isMain ? 'Principal · ' : '') + sub }))),
+          h('span', { class: 'sec-grip', role: 'button', tabindex: '0', title: 'Arrastrar para ordenar', 'aria-label': `Mover ${secName(n, id)}. Flechas arriba y abajo para ordenar`, html: GRIP,
+            onkeydown: e => { const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1; if (to < 0 || to >= ids.length) return; e.preventDefault(); move(id, i, to); const g = body.querySelector(`.sec-row[data-id="${CSS.escape(id)}"] .sec-grip`); if (g) g.focus(); } }));
       }));
-      if (before && !calm()) for (const r of body.querySelectorAll('.sec-row')) {
-        const y0 = before.get(r.dataset.id);
-        const dy = y0 == null ? 0 : y0 - r.getBoundingClientRect().top;
-        if (dy) r.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.2, 0, 0, 1)' });
-      }
+      flipRows(body, before);
     };
-    const focusGrip = id => { const g = body.querySelector(`.sec-row[data-id="${CSS.escape(id)}"] .sec-grip`); if (g) g.focus(); };
-    const move = (id, to, star) => {
+    const move = (id, from, to) => {
+      if (from === to) { draw(true); return; }
+      if (!n.main) n.main = mainOf(n); // la principal no cambia al reordenar
       const ids = secIds(n);
       ids.splice(ids.indexOf(id), 1);
       ids.splice(to, 0, id);
       n.order = ids; changed = true; touch(n);
       draw(true);
-      if (star) { const s0 = body.querySelector('.sec-row .sec-star'); if (s0) play(s0, 'm-pop'); }
     };
-    // Arrastre con la manija: la fila va pegada al dedo y las demás se corren para abrir el hueco.
-    let drag = null;
-    body.addEventListener('pointerdown', e => {
-      const grip = e.target.closest('.sec-grip');
-      if (!grip || e.button) return;
-      e.preventDefault();
-      const row = grip.closest('.sec-row');
-      grip.setPointerCapture(e.pointerId);
-      const rows = [...body.querySelectorAll('.sec-row')];
-      drag = { row, pid: e.pointerId, y0: e.clientY, h: row.offsetHeight + 2, from: rows.indexOf(row), to: rows.indexOf(row), rows, tops: rows.map(r => r.offsetTop) };
-      row.classList.add('lift');
-      body.classList.add('dragging');
-      if (navigator.vibrate) try { navigator.vibrate(12); } catch { /* sin vibración */ }
-    });
-    body.addEventListener('pointermove', e => {
-      if (!drag || e.pointerId !== drag.pid) return;
-      const dy = e.clientY - drag.y0;
-      drag.row.style.transform = `translateY(${dy}px)`;
-      const center = drag.tops[drag.from] + drag.h / 2 + dy;
-      let to = 0;
-      drag.tops.forEach((t, i) => { if (center > t + drag.h / 2) to = i; });
-      to = Math.max(0, Math.min(drag.rows.length - 1, center < drag.tops[0] ? 0 : to));
-      drag.to = to;
-      drag.rows.forEach((r, i) => {
-        if (r === drag.row) return;
-        let shift = 0;
-        if (drag.from < to && i > drag.from && i <= to) shift = -drag.h;
-        if (drag.from > to && i < drag.from && i >= to) shift = drag.h;
-        r.style.transform = shift ? `translateY(${shift}px)` : '';
-      });
-    });
-    const drop = e => {
-      if (!drag || e.pointerId !== drag.pid) return;
-      const { row, from, to, rows } = drag;
-      drag = null;
-      body.classList.remove('dragging');
-      row.classList.remove('lift');
-      for (const r of rows) r.style.transform = '';
-      if (to !== from) move(row.dataset.id, to); else draw(true);
-    };
-    body.addEventListener('pointerup', drop);
-    body.addEventListener('pointercancel', drop);
+    dragList(body, move);
 
+    // Agregar: una fila más al final de la lista; al tocarla aparecen las categorías (con su ícono) y "Nueva".
     const add = cat => { changed = false; d.close(); addTranscript(n, '', '', cat); };
-    const input = h('input', { type: 'text', placeholder: 'Nombre de la categoría (ej. Resumen)', autocomplete: 'off', maxlength: '40', 'aria-label': 'Nueva categoría' });
-    const create = () => { const v = input.value.trim(); if (!v) { input.focus(); return; } add(addCat(v)); };
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
-    const addBox = h('div', { class: 'sec-add', hidden: !toAdd },
-      h('div', { class: 'chips' }, allCatsForPick().map(c => h('button', { class: 'chip', type: 'button', onclick: () => add(c.id) }, h('span', { class: 'chip-l', text: c.name })))),
-      h('div', { class: 'row sec-new' }, input, h('button', { class: 'btn', type: 'button', text: 'Crear', onclick: create })));
-    const addLink = h('button', { class: 'sec-addlink', type: 'button', 'aria-expanded': String(!!toAdd), onclick: () => {
-      addBox.hidden = !addBox.hidden;
-      addLink.setAttribute('aria-expanded', String(!addBox.hidden));
-      if (!addBox.hidden) play(addBox, 'm-drop');
-    } }, h('span', { html: I.plus }), h('span', { text: 'Agregar sección' }));
+    const picker = h('div', { class: 'sec-add', hidden: !toAdd });
+    let newIcon = 'tag';
+    const drawPicker = () => {
+      const input = h('input', { type: 'text', placeholder: 'Nombre (ej. Resumen)', autocomplete: 'off', maxlength: '40', 'aria-label': 'Nombre de la categoría nueva' });
+      const icBtn = h('button', { class: 'sec-ic sec-icbtn', type: 'button', title: 'Elegir ícono', 'aria-label': 'Elegir ícono', html: iconSvg(newIcon),
+        onclick: e => iconPicker(e.currentTarget, newIcon, k => { newIcon = k; icBtn.innerHTML = iconSvg(k); }) });
+      const create = () => {
+        const v = input.value.trim();
+        if (!v) { input.focus(); return; }
+        const cat = addCat(v);
+        const c = S.data.cats.find(x => x.id === cat);
+        if (c && !c.icon) { c.icon = newIcon; c.updatedAt = Date.now(); scheduleSave(); }
+        add(cat);
+      };
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
+      const form = h('div', { class: 'sec-newform', hidden: true }, icBtn, input, h('button', { class: 'btn primary small', type: 'button', text: 'Crear', onclick: create }));
+      picker.replaceChildren(
+        h('div', { class: 'chips' },
+          allCatsForPick().map(c => h('button', { class: 'chip ic-chip', type: 'button', onclick: () => add(c.id) },
+            h('span', { class: 'chip-ic', html: iconSvg(catIconKey(c.id)) }), h('span', { class: 'chip-l', text: c.name }))),
+          h('button', { class: 'chip ic-chip new', type: 'button', onclick: () => { form.hidden = false; play(form, 'm-drop'); input.focus(); } },
+            h('span', { class: 'chip-ic', html: I.plus }), h('span', { class: 'chip-l', text: 'Nueva categoría' }))),
+        form);
+    };
+    drawPicker();
+    const addRow = h('button', { class: 'sec-addrow', type: 'button', 'aria-expanded': String(!!toAdd), onclick: () => {
+      picker.hidden = !picker.hidden;
+      addRow.setAttribute('aria-expanded', String(!picker.hidden));
+      if (!picker.hidden) play(picker, 'm-drop');
+    } }, h('span', { class: 'sec-addic', html: I.plus }), h('span', { text: 'Agregar sección' }));
     openDialog(d, 'Secciones', [
-      h('p', { class: 'sec-hint' }, 'Tocá la ', h('span', { class: 'sec-hint-star', html: I.star }), ' para elegir la principal (la que se abre al entrar). Arrastrá ', h('b', { text: '≡' }), ' para ordenar.'),
+      h('p', { class: 'sec-hint' }, h('span', { class: 'sec-hint-star', html: I.star }), ' elige la principal (se abre al entrar). Tocá el ícono para cambiarlo y arrastrá ', h('b', { text: '≡' }), ' para ordenar.'),
       body,
-      h('div', { class: 'sec-addhead' }, h('span', { class: 'f-label', text: 'Secciones nuevas' }), addLink),
-      addBox
+      addRow,
+      picker
     ], [h('button', { class: 'btn primary', type: 'button', text: 'Listo', onclick: () => d.close() })]);
     d.classList.add('sheet');
     draw();
@@ -2133,7 +2272,7 @@
       [I.type, 'Apariencia y escritura', readingDialog],
       null,
       [I.importi, 'Importar información', () => importInfo(n)],
-      [I.layers, 'Ordenar y agregar secciones', () => sectionsSheet(n)],
+      [I.tag, 'Categorías de secciones', catsDialog],
       null,
       [I.trash, 'Eliminar nota', () => deleteNote(n), 'danger']
     ];
@@ -2143,12 +2282,13 @@
   function secMenu(n, anchor) {
     commitEditor();
     const ids = secIds(n);
-    const items = ids.map((id, i) => {
+    const main = mainOf(n);
+    const items = ids.map(id => {
       const t = id === 'nota' ? null : n.transcripts.find(x => x.id === id);
-      const sub = (i === 0 ? 'Principal · ' : '') + (t ? (t.name ? catName(catOf(t)) + ' · ' : '') + wordsLabel(t.text) : wordsLabel(n.text));
+      const sub = (id === main ? 'Principal · ' : '') + (t ? (t.name ? catName(catOf(t)) + ' · ' : '') + wordsLabel(t.text) : wordsLabel(n.text));
       return [secIcon(n, id), secName(n, id), () => { if (view.tab !== id) switchTab(n, id); }, '', sub, view.tab === id];
     });
-    items.push(null, [I.plus, 'Sección', () => sectionsSheet(n, true), 'add', 'Agregar, ordenar o elegir la principal']);
+    items.push(null, [I.plus, 'Sección', () => sectionsSheet(n, true), 'add', 'Agregar'], [I.layers, 'Editar secciones', () => sectionsSheet(n), '', 'Orden, principal e íconos']);
     popMenu(anchor, '', items, { align: 'left' });
   }
   // Compartir una nota: lo rápido directo en el menú, y "Elegir qué incluir…" abre el diálogo completo.
@@ -3701,7 +3841,7 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
   }
 
   function sameContent(a, b) {
-    const pick = n => JSON.stringify([n.title, n.date, n.text, n.tags, (n.transcripts || []).map(t => [t.name, t.text, t.cat || '']), n.order || null]);
+    const pick = n => JSON.stringify([n.title, n.date, n.text, n.tags, (n.transcripts || []).map(t => [t.name, t.text, t.cat || '']), n.order || null, n.main || null, n.notaIcon || null, (n.transcripts || []).map(t => t.icon || '')]);
     return pick(a) === pick(b);
   }
   function mergeRemote(remoteNotes) {
