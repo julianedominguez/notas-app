@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.10.1';
+  const APP_VERSION = '2.10.2';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -1845,10 +1845,37 @@
     document.body.classList.toggle('kbd', open);
     setNav(true);
     measureNav();
-    if (open) centerSoon(true, 120);
+    if (open) { centerSoon(true, 120); afterTextTap(); }
   }
   addEventListener('resize', checkKeyboard);
   if (window.visualViewport) { visualViewport.addEventListener('resize', checkKeyboard); visualViewport.addEventListener('scroll', placeFmt); }
+  // Al tocar el texto, Android dibuja una "gotita" debajo del cursor para arrastrarlo. Si el cursor queda cerca
+  // de la barra de formato, la gotita cae encima y deslizar la barra arrastra el cursor. Por eso el cursor se
+  // mantiene siempre a una distancia de la barra y, un momento después del toque, la gotita se esconde sola
+  // (un cambio de selección hecho por la app no la muestra). Escribir o desplazar el texto ya la escondía.
+  function keepCaretClear(smooth = true) {
+    if (!ED || !ED.fmt || !ED.fmt.classList.contains('fmt-float') || !document.body.classList.contains('kbd')) return;
+    const v = ED.editor.view;
+    if (!v.hasFocus()) return;
+    let c;
+    try { c = v.coordsAtPos(v.state.selection.head); } catch { return; }
+    const barTop = ED.fmt.getBoundingClientRect().top + 10;
+    const limit = barTop - 72;
+    if (c.bottom > limit) { autoScrollUntil = Date.now() + 500; $('#editor').scrollBy({ top: Math.ceil(c.bottom - limit) + 8, behavior: smooth && !calm() ? 'smooth' : 'auto' }); }
+  }
+  function hideCaretHandle() {
+    if (!ED || !fmtBottom()) return;
+    const sel = getSelection();
+    if (!sel || !sel.rangeCount || !sel.isCollapsed || !ED.editor.view.hasFocus()) return;
+    if (Date.now() - typedAt < 400) return;
+    const node = sel.anchorNode, off = sel.anchorOffset;
+    try { sel.removeAllRanges(); const r = document.createRange(); r.setStart(node, off); r.collapse(true); sel.addRange(r); } catch { /* sin cambios */ }
+  }
+  let tapFixT = 0;
+  function afterTextTap() {
+    clearTimeout(tapFixT);
+    tapFixT = setTimeout(() => { keepCaretClear(); setTimeout(hideCaretHandle, 280); }, 320);
+  }
   // La barra de formato se apoya justo sobre el borde de arriba del teclado, mida lo que mida.
   function placeFmt() {
     const bar = ED && ED.fmt;
@@ -2464,11 +2491,13 @@
       },
       onSelectionUpdate: () => {
         if (centerOn() && !fmtTouched() && Date.now() - typedAt > 80) centerSoon(true, 220);
+        if (!fmtTouched() && Date.now() - typedAt > 80) afterTextTap();
       },
       onTransaction: () => updateFmtSoon(),
       onFocus: () => {
         document.body.classList.add('editing');
         if (centerOn() && !fmtTouched()) centerSoon(true, 350);
+        afterTextTap();
       },
       // Al tocar o deslizar la barra de formato el texto puede perder el foco un instante: la barra no se esconde
       // (si se escondiera, el próximo toque caería en el texto y movería el cursor). Se recupera el foco sin mover la pantalla.
