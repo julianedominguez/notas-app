@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.10.3';
+  const APP_VERSION = '2.10.4';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -35,7 +35,7 @@
     finger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 5.4A8.5 8.5 0 0 1 20.5 11v1.5"/><path d="M3.5 9.5a8.6 8.6 0 0 1 1.2-2.4"/><path d="M3.6 13.5c.6-1.2.9-2.4.9-3.5"/><path d="M8 20.2c1.4-2.4 2-5 2-7.7a2 2 0 0 1 4 0c0 .8 0 1.6-.1 2.4"/><path d="M12 12.5c0 3.4-.9 6.6-2.6 9"/><path d="M7.4 9.4A4.5 4.5 0 0 1 16.5 12.5c0 2.6-.4 5.1-1.2 7.4"/><path d="M5.5 17.5c.6-1.6 1-3.3 1-5"/><path d="M19.8 16a24 24 0 0 0 .6-3.5"/><path d="M13.2 21.5c.4-1 .7-2 1-3"/></svg>',
     chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
     burger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
-    fmtmin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="fm-a" d="M10 7l5 5-5 5"/><path class="fm-b" d="M5 18h3M9.5 6h7M13 6l-3 12"/></svg>',
+    fmtmin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="fm-a" d="M10 7l5 5-5 5"/><text class="fm-b" x="12" y="16.5" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor" stroke="none" font-family="system-ui, sans-serif">Aa</text></svg>',
     x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     tune: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>',
     refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/></svg>',
