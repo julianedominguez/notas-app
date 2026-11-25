@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.11.0';
+  const APP_VERSION = '2.11.1';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -1307,6 +1307,8 @@
 
   /* ---------- Selección múltiple (toque largo en una nota) ---------- */
   let longFired = false; // el toque largo que recién terminó no cuenta como toque
+  let lpTimer = 0;
+  const clearLongPress = () => clearTimeout(lpTimer);
   function longPress(el, onLong) {
     let t = 0, sx = 0, sy = 0;
     el.addEventListener('pointerdown', e => {
@@ -1314,7 +1316,7 @@
       sx = e.clientX; sy = e.clientY;
       longFired = false;
       clearTimeout(t);
-      t = setTimeout(() => { longFired = true; if (navigator.vibrate) navigator.vibrate(12); onLong(); }, 480);
+      t = lpTimer = setTimeout(() => { longFired = true; if (navigator.vibrate) navigator.vibrate(12); onLong(); }, 480);
     });
     const cancel = () => clearTimeout(t);
     el.addEventListener('pointermove', e => { if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel(); });
@@ -2323,16 +2325,35 @@
   // Menú ⋯ de la nota: una tarjeta flotante que sale del botón (como en ChatGPT), con íconos y grupos:
   // lo de todos los días arriba, lo de agregar contenido en el medio y lo destructivo solo, al final y en rojo.
   function noteMenu(n, anchor) {
+    const t = n.transcripts.find(x => x.id === view.tab);
+    const secItems = t ? [
+      null,
+      [I.copy, 'Copiar esta sección', async () => { commitEditor(); toast(await copyText(t.text) ? 'Sección copiada.' : 'No se pudo copiar.'); }, '', secLabel(n, t)],
+      [I.trash, 'Eliminar esta sección', () => deleteSection(n, t), 'danger', secLabel(n, t)]
+    ] : [];
     const items = [
       [I.share, 'Compartir', () => shareMenu(n, anchor)],
       [I.outline, 'Índice de títulos', () => { if (!ED) switchTab(n, 'nota'); outlineDialog(); }],
       [I.type, 'Apariencia y escritura', readingDialog],
       null,
       [I.importi, 'Importar información', () => importInfo(n)],
+      ...secItems,
       null,
       [I.trash, 'Eliminar nota', () => deleteNote(n), 'danger']
     ];
     popMenu(anchor, n.title || 'Sin título', items);
+  }
+  async function deleteSection(n, t) {
+    commitEditor();
+    if (!(await confirmBox(`¿Eliminar la sección "${secLabel(n, t)}"? ${(t.text || '').trim() ? 'Se borra su contenido y no se puede deshacer.' : 'Está vacía.'}`, 'Eliminar', true))) return;
+    if (ED && ED.target === t) ED.dirty = false;
+    n.transcripts = n.transcripts.filter(x => x.id !== t.id);
+    if (Array.isArray(n.order)) n.order = n.order.filter(x => x !== t.id);
+    if (n.main === t.id) delete n.main;
+    touch(n);
+    view.tab = mainOf(n);
+    renderEditor();
+    toast('Sección eliminada.');
   }
   // Desplegable del botón de sección: las secciones en orden (la primera es la principal) y abajo "+ Sección".
   function secMenu(n, anchor) {
@@ -2436,27 +2457,9 @@
     name.addEventListener('input', () => { t.name = name.value; const l = $('.tab.on .tab-l'); if (l) l.textContent = secLabel(n, t); touch(n); });
     const host = h('div', { class: 'prose' });
     const isTr = catOf(t) === TR;
-    const loadTxt = isTr ? h('button', { class: 'btn small', text: 'Cargar .txt', onclick: async () => {
-      const [f] = await pickFile('.txt,.md,text/plain');
-      if (!f || !ED || ED.target !== t) return;
-      const html = plainToHtml(await f.text());
-      if (ED.editor.isEmpty) ED.editor.commands.setContent(html);
-      else ED.editor.chain().focus('end').insertContent(html).run();
-      if (!t.name) { t.name = f.name.replace(/\.(txt|md)$/i, ''); name.value = t.name; const l = $('.tab.on .tab-l'); if (l) l.textContent = secLabel(n, t); }
-      ED.dirty = true; commitEditor(); toast('Transcripción cargada.');
-    } }) : null;
+    // Copiar, eliminar o importar a esta sección están en el menú ⋯ de la nota: acá solo queda el nombre y el conteo.
     pane.append(h('div', { class: 'ed-body' },
-      h('div', { class: 'tr-top' }, name,
-        h('div', { class: 'tr-actions' }, stats, loadTxt,
-          h('button', { class: 'btn small', text: 'Copiar', onclick: async () => { commitEditor(); toast(await copyText(t.text) ? 'Sección copiada.' : 'No se pudo copiar.'); } }),
-          h('button', { class: 'btn small danger', text: 'Eliminar', onclick: async () => {
-            commitEditor();
-            if (!(await confirmBox(`¿Eliminar la sección "${secLabel(n, t)}"? ${(t.text || '').trim() ? 'Se borra su contenido y no se puede deshacer.' : 'Está vacía.'}`, 'Eliminar', true))) return;
-            if (ED) ED.dirty = false;
-            n.transcripts = n.transcripts.filter(x => x.id !== t.id); touch(n); view.tab = 'nota'; renderEditor();
-          } })
-        )
-      ),
+      h('div', { class: 'tr-top' }, name, h('div', { class: 'tr-actions' }, stats)),
       host));
     mountEditor(n, t, head, host, isTr ? 'Pegá acá la transcripción o cargala desde un archivo .txt' : 'Escribí acá. Tiene el mismo formato que la nota.', isTr ? 'Transcripción' : 'Texto de la sección', md => {
       const w = wordsLabel(md);
@@ -3230,7 +3233,7 @@
   // (la misma vibración corta que al levantar una sección para moverla). Al soltar, la nota vuelve a su lugar
   // y queda elegida. En modo selección, el mismo gesto la elige o la suelta.
   function swipeSelect(list) {
-    const TH = 64;
+    const TH = 56;
     let st = null;
     list.addEventListener('touchstart', e => {
       st = null;
@@ -3246,7 +3249,7 @@
       const mx = t.clientX - st.x, my = t.clientY - st.y;
       if (!st.on) {
         if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { st = null; return; }
-        if (mx > 12 && mx > Math.abs(my) * 1.5) { st.on = true; st.x = t.clientX; st.item.classList.add('swiping'); }
+        if (mx > 10 && mx > Math.abs(my)) { st.on = true; st.x = t.clientX; st.item.classList.add('swiping'); clearLongPress(); }
         else return;
       }
       if (e.cancelable) e.preventDefault();
