@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.10.4';
+  const APP_VERSION = '2.11.0';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -1208,6 +1208,7 @@
     );
     renderSync();
     pullToSync($('#list'));
+    swipeSelect($('#list'));
     edgeSwipe($('#sidebar'));
   }
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path class="ck" pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -1863,6 +1864,21 @@
     const limit = barTop - 72;
     if (c.bottom > limit) { autoScrollUntil = Date.now() + 500; $('#editor').scrollBy({ top: Math.ceil(c.bottom - limit) + 8, behavior: smooth && !calm() ? 'smooth' : 'auto' }); }
   }
+  // Mientras la persona toca el texto o tiene algo seleccionado, la app no mueve la pantalla por su cuenta:
+  // si la pantalla se corre mientras arrastrás una manija de selección, la selección se dispara (buenas prácticas
+  // de editores en el celu: el scroll automático solo acompaña al escribir).
+  let textTouch = false, textTouchEnd = 0;
+  {
+    const ed = $('#editor');
+    ed.addEventListener('touchstart', e => { if (e.target.closest('.ProseMirror')) textTouch = true; }, { passive: true });
+    const off = () => { if (textTouch) { textTouch = false; textTouchEnd = Date.now(); } };
+    ed.addEventListener('touchend', off, { passive: true });
+    ed.addEventListener('touchcancel', off, { passive: true });
+  }
+  function selecting() {
+    if (textTouch || Date.now() - textTouchEnd < 450) return true;
+    return !!(ED && !ED.editor.state.selection.empty);
+  }
   function hideCaretHandle() {
     if (!ED || !fmtBottom()) return;
     const sel = getSelection();
@@ -1874,7 +1890,7 @@
   let tapFixT = 0;
   function afterTextTap() {
     clearTimeout(tapFixT);
-    tapFixT = setTimeout(() => { keepCaretClear(); setTimeout(hideCaretHandle, 280); }, 320);
+    tapFixT = setTimeout(() => { if (!selecting()) keepCaretClear(); }, 320);
   }
   // La barra de formato se apoya justo sobre el borde de arriba del teclado, mida lo que mida.
   function placeFmt() {
@@ -1889,6 +1905,8 @@
   function centerOn() { return !!PREF.center; }
   function centerCaret(smooth) {
     if (!ED || !centerOn() || fmtTouched()) return;
+    // Seleccionando texto (o con el dedo sobre el texto) no se centra: centrar solo acompaña al escribir.
+    if (!ED.editor.state.selection.empty || textTouch) return;
     const v = ED.editor.view;
     if (!v.hasFocus()) return;
     const sc = $('#editor');
@@ -2490,8 +2508,9 @@
         if (centerOn() && !fmtTouched()) { clearTimeout(centerT); requestAnimationFrame(() => centerCaret(false)); }
       },
       onSelectionUpdate: () => {
-        if (centerOn() && !fmtTouched() && Date.now() - typedAt > 80) centerSoon(true, 220);
-        if (!fmtTouched() && Date.now() - typedAt > 80) afterTextTap();
+        // Mover el cursor o seleccionar con el dedo no mueve la pantalla; solo escribir la acompaña.
+        if (selecting() || fmtTouched() || Date.now() - typedAt < 80) return;
+        if (centerOn()) centerSoon(true, 220);
       },
       onTransaction: () => updateFmtSoon(),
       onFocus: () => {
@@ -3180,13 +3199,17 @@
     d.addEventListener('touchcancel', end);
   }
   // Deslizar hacia la derecha sobre la mitad izquierda de la lista abre el menú de la app.
+  // Sobre una nota el gesto es de la nota (deslizar para seleccionarla); el menú se abre desde el borde
+  // o desde un lugar sin nota.
   function edgeSwipe(pane) {
     let sx = 0, sy = 0, track = false;
     pane.addEventListener('touchstart', e => {
       track = false;
       if (e.touches.length !== 1 || ui.sel) return;
       const t = e.touches[0];
-      if (t.clientX > pane.getBoundingClientRect().left + pane.clientWidth * 0.45) return;
+      const left = pane.getBoundingClientRect().left;
+      if (e.target.closest('#list .item') && t.clientX > left + 24) return;
+      if (t.clientX > left + pane.clientWidth * 0.45) return;
       sx = t.clientX; sy = t.clientY; track = true;
     }, { passive: true });
     pane.addEventListener('touchmove', e => {
@@ -3200,6 +3223,67 @@
       }
     }, { passive: true });
     pane.addEventListener('touchend', () => { track = false; });
+  }
+
+  /* ---------- Deslizar una nota a la derecha: la elige, como mantenerla apretada ---------- */
+  // La nota sigue al dedo con resistencia; al pasar el umbral aparece el círculo con tilde y vibra una vez
+  // (la misma vibración corta que al levantar una sección para moverla). Al soltar, la nota vuelve a su lugar
+  // y queda elegida. En modo selección, el mismo gesto la elige o la suelta.
+  function swipeSelect(list) {
+    const TH = 64;
+    let st = null;
+    list.addEventListener('touchstart', e => {
+      st = null;
+      if (e.touches.length !== 1) return;
+      const item = e.target.closest('.item');
+      const t = e.touches[0];
+      if (!item || t.clientX < list.getBoundingClientRect().left + 24) return;
+      st = { item, x: t.clientX, y: t.clientY, on: false, armed: false, dx: 0 };
+    }, { passive: true });
+    list.addEventListener('touchmove', e => {
+      if (!st) return;
+      const t = e.touches[0];
+      const mx = t.clientX - st.x, my = t.clientY - st.y;
+      if (!st.on) {
+        if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { st = null; return; }
+        if (mx > 12 && mx > Math.abs(my) * 1.5) { st.on = true; st.x = t.clientX; st.item.classList.add('swiping'); }
+        else return;
+      }
+      if (e.cancelable) e.preventDefault();
+      const raw = Math.max(0, t.clientX - st.x);
+      // Resistencia: después del umbral la nota avanza cada vez menos.
+      st.dx = raw <= TH ? raw : TH + (raw - TH) * 0.25;
+      st.item.style.translate = st.dx + 'px 0';
+      st.item.style.setProperty('--sw', Math.min(1, st.dx / TH).toFixed(3));
+      const armed = st.dx >= TH;
+      if (armed !== st.armed) {
+        st.armed = armed;
+        st.item.classList.toggle('sw-armed', armed);
+        if (armed && navigator.vibrate) try { navigator.vibrate(12); } catch { /* sin vibración */ }
+      }
+    }, { passive: false });
+    const end = e => {
+      if (!st) return;
+      const g = st; st = null;
+      if (!g.on) return;
+      longFired = true; setTimeout(() => { longFired = false; }, 350);
+      const item = g.item;
+      const back = () => { item.classList.remove('swiping', 'sw-armed'); item.style.translate = ''; item.style.removeProperty('--sw'); };
+      if (calm()) back();
+      else {
+        item.style.transition = 'translate 220ms cubic-bezier(.2, 0, 0, 1)';
+        item.style.translate = '0px 0';
+        setTimeout(() => { item.style.transition = ''; back(); }, 230);
+      }
+      if (!g.armed || e.type === 'touchcancel') return;
+      const id = item.dataset.id;
+      setTimeout(() => {
+        if (!ui.sel) startSelect(id);
+        else { ui.sel.has(id) ? ui.sel.delete(id) : ui.sel.add(id); if (!ui.sel.size) { ui.sel = new Set(); endSelect(); } else renderList(); }
+      }, calm() ? 0 : 200);
+    };
+    list.addEventListener('touchend', end);
+    list.addEventListener('touchcancel', end);
   }
 
   /* ---------- Tirar la lista hacia abajo para sincronizar ---------- */

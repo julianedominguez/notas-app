@@ -1400,3 +1400,18 @@ body.fmt-bottom .fmt-bar:not(.min) .fm-b { display: none; }
 @keyframes fmt-min2 { from { opacity: .3; transform: scale(.85); } }
 @keyframes fmt-max2 { from { clip-path: inset(0 0 0 calc(100% - 66px) round 22px); } to { clip-path: inset(0 0 0 0); } }
 body.fmt-bottom .fmt-bar.fmt-float.min { right: 0; width: 80px; height: 64px; padding: 6px 12px 10px; overflow: visible; box-sizing: border-box; }
+
+/* 2.11.0: deslizar una nota a la derecha la elige */
+.list .item { touch-action: pan-y; }
+.list .item.swiping { z-index: 1; overflow: visible; }
+.list .item.swiping::before {
+  content: ""; position: absolute; left: -46px; top: 50%; width: 26px; height: 26px; margin-top: -13px; border-radius: 50%;
+  border: 2px solid var(--muted); background: transparent; opacity: var(--sw, 0); scale: calc(.6 + .4 * var(--sw, 0));
+  transition: background-color 140ms, border-color 140ms;
+}
+.list .item.swiping.sw-armed::before { background: var(--accent); border-color: var(--accent); scale: 1.08; }
+.list .item.swiping.sw-armed::after {
+  content: ""; position: absolute; left: -37px; top: 50%; width: 6px; height: 11px; margin-top: -8px;
+  border: solid #1a1400; border-width: 0 2.4px 2.4px 0; transform: rotate(45deg);
+}
+.list.selecting .item.swiping::before { left: -46px; top: 50%; }
