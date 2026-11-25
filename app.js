@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.8.0';
+  const APP_VERSION = '2.9.0';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -52,6 +52,14 @@
     cloud2: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.2 18.5h9.9a3.9 3.9 0 0 0 .5-7.77A5.6 5.6 0 0 0 6.9 9.8a4.35 4.35 0 0 0 .3 8.7z"/></svg>',
     timer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M10 2.5h4"/></svg>',
     pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11M7.5 8 12 3.5 16.5 8"/><path d="M6 11.5H5v9h14v-9h-1"/></svg>',
+    importi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14.5v-11M7.5 10 12 14.5 16.5 10"/><path d="M5 15.5v5h14v-5"/></svg>',
+    mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/></svg>',
+    star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.8l2.5 5.1 5.6.8-4 4 .9 5.6-5-2.7-5 2.7.9-5.6-4-4 5.6-.8z"/></svg>',
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 18.5v-13M6.5 11 12 5.5l5.5 5.5"/></svg>',
+    down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5v13M6.5 13l5.5 5.5 5.5-5.5"/></svg>',
+    layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 3.5 8.5 12 13l8.5-4.5z"/><path d="M3.5 12.5 12 17l8.5-4.5M3.5 16.5 12 21l8.5-4.5"/></svg>',
+    swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4.5 3.5 8 7 11.5M3.5 8h13M17 12.5l3.5 3.5-3.5 3.5M20.5 16h-13"/></svg>',
     note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h5M9 12h7M9 15.5h7"/></svg>'
   };
 
@@ -322,7 +330,9 @@
   });
   addEventListener('pagehide', () => { flush(); });
 
-  async function lock(pickSid) {
+  // lock(): pantalla de inicio (elige cuenta si hay más de una). lock(id): directo a esa cuenta.
+  // lock(id, { noAuto: true }): directo a esa cuenta, sin pedir la huella sola (al bloquear a propósito).
+  async function lock(pickSid, lockOpts) {
     if (!S) return;
     const cur = ui.current;
     destroyEditor();
@@ -343,7 +353,7 @@
     $('#editor').replaceChildren();
     $('#app').hidden = true;
     document.body.classList.remove('show-editor');
-    showLock(typeof pickSid === 'string' ? pickSid : undefined);
+    showLock(typeof pickSid === 'string' ? pickSid : undefined, lockOpts);
   }
 
   /* ---------- Huella: WebAuthn con la extensión PRF ---------- */
@@ -562,7 +572,7 @@
     }
   }
 
-  async function showLock(pickSid) {
+  async function showLock(pickSid, lockOpts = {}) {
     const root = $('#lock');
     root.hidden = false;
     const sessions = await listSessions();
@@ -679,6 +689,7 @@
         multi ? h('button', { class: 'linklike', type: 'button', text: 'Cambiar de cuenta', onclick: () => showLock() }) : null,
         h('button', { class: 'linklike', type: 'button', text: '¿Olvidaste la contraseña?', onclick: forgotDialog }))].filter(Boolean));
     root.replaceChildren(card);
+    if (hasBio && lockOpts.noAuto) return;
     if (hasBio) {
       const go = () => { if (!S && card.isConnected && document.visibilityState === 'visible') tryBio(true); };
       if (document.visibilityState === 'visible') setTimeout(go, 120);
@@ -870,6 +881,23 @@
     return c.id;
   }
   function catInUse(cat) { return liveNotes().some(n => (n.transcripts || []).some(t => catOf(t) === cat)); }
+  // Orden de las secciones de una nota, con "Nota" como una sección más. La primera es la principal: se abre al entrar.
+  function secIds(n) {
+    const have = ['nota', ...(n.transcripts || []).map(t => t.id)];
+    const ord = Array.isArray(n.order) ? n.order.filter(id => have.includes(id)) : [];
+    for (const id of have) if (!ord.includes(id)) ord.push(id);
+    return ord;
+  }
+  function secName(n, id) {
+    if (id === 'nota') return 'Nota';
+    const t = (n.transcripts || []).find(x => x.id === id);
+    return t ? secLabel(n, t) : 'Sección';
+  }
+  function secIcon(n, id) {
+    if (id === 'nota') return I.note;
+    const t = (n.transcripts || []).find(x => x.id === id);
+    return t && catOf(t) === TR ? I.mic : I.tag;
+  }
   function secLabel(n, t) {
     if (t.name) return t.name;
     const same = n.transcripts.filter(x => catOf(x) === catOf(t));
@@ -1188,7 +1216,7 @@
       h('button', { class: 'pill-btn sel-x', type: 'button', 'aria-label': 'Salir de la selección', title: 'Salir de la selección', html: I.x, onclick: () => endSelect() }),
       h('span', { class: 'sel-n', text: n === 1 ? '1 elegida' : `${n} elegidas` }),
       h('button', { class: 'btn ghost small', type: 'button', text: allOn ? 'Ninguna' : 'Todas', onclick: () => { if (allOn) ui.sel.clear(); else visible.forEach(x => ui.sel.add(x.id)); renderList(); } }),
-      h('button', { class: 'btn ghost icon', type: 'button', title: 'Copiar o descargar como texto', 'aria-label': 'Copiar o descargar como texto', html: I.copy, disabled: !n, onclick: () => { const ids = [...ui.sel]; endSelect(); exportDialog(null, ids); } }),
+      h('button', { class: 'btn ghost icon', type: 'button', title: 'Compartir las elegidas', 'aria-label': 'Compartir las elegidas', html: I.share, disabled: !n, onclick: () => { const ids = [...ui.sel]; endSelect(); exportDialog(null, ids); } }),
       h('button', { class: 'btn ghost icon danger', type: 'button', title: 'Eliminar', 'aria-label': 'Eliminar las elegidas', html: I.trash, disabled: !n, onclick: deleteSelected })
     );
   }
@@ -1290,15 +1318,54 @@
   function foldKey() { return 'notas-app-fold:' + S.sid; }
   function loadFold() { try { ui.fold = new Set(JSON.parse(localStorage.getItem(foldKey()) || '[]')); } catch { ui.fold = new Set(); } }
   function saveFold() { try { localStorage.setItem(foldKey(), JSON.stringify([...ui.fold])); } catch { /* sin almacenamiento */ } }
+  // Plegar y desplegar un mes sin cambiar alturas cuadro a cuadro (eso es lo que se sentía cortado en el celu):
+  // las notas del mes se desvanecen y todo lo que está abajo se desliza con transform, que lo mueve la placa
+  // de video sin recalcular la página. Al final se arma la lista real, que ya coincide con lo que se ve.
+  let foldBusy = null;
   async function toggleMonth(mk) {
+    if (foldBusy) { await foldBusy; }
+    const list = $('#list');
     const sel = `#list .item[data-m="${CSS.escape(mk)}"]`;
+    const head = () => list.querySelector(`.month[data-m="${CSS.escape(mk)}"]`);
+    // Lo que está debajo del mes y se ve (más un margen): lo único que hace falta mover.
+    const below = (rows, H) => {
+      const last = rows[rows.length - 1];
+      const out = [];
+      const limit = list.getBoundingClientRect().bottom + H + 40;
+      for (let el = last && last.nextElementSibling; el; el = el.nextElementSibling) {
+        if (el.getBoundingClientRect().top > limit) break;
+        out.push(el);
+      }
+      return out;
+    };
+    const span = rows => rows.length ? rows[rows.length - 1].getBoundingClientRect().bottom - rows[0].getBoundingClientRect().top : 0;
+    const EASE = 'cubic-bezier(.2, 0, 0, 1)';
     if (ui.fold.has(mk)) {
       ui.fold.delete(mk); saveFold(); renderList();
-      expand([...document.querySelectorAll(sel)]);
+      if (calm()) return;
+      const rows = [...list.querySelectorAll(sel)];
+      const H = span(rows);
+      if (!H) return;
+      const run = [];
+      for (const el of below(rows, H)) run.push(el.animate([{ transform: `translateY(${-H}px)` }, { transform: 'none' }], { duration: 280, easing: EASE }));
+      rows.forEach((el, i) => run.push(el.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }],
+        { duration: 240, delay: Math.min(i, 6) * 14, easing: EASE, fill: 'backwards' })));
+      foldBusy = Promise.all(run.map(a => a.finished.catch(() => {}))).then(() => { foldBusy = null; });
     } else {
-      const head = document.querySelector(`#list .month[data-m="${CSS.escape(mk)}"]`);
-      if (head) { head.classList.add('closed'); head.setAttribute('aria-expanded', 'false'); }
-      await collapse([...document.querySelectorAll(sel)]);
+      const h0 = head();
+      if (h0) { h0.classList.add('closed'); h0.setAttribute('aria-expanded', 'false'); }
+      if (!calm()) {
+        const rows = [...list.querySelectorAll(sel)];
+        const H = span(rows);
+        if (H) {
+          const run = [];
+          for (const el of below(rows, H)) run.push(el.animate([{ transform: 'none' }, { transform: `translateY(${-H}px)` }], { duration: 240, easing: EASE, fill: 'forwards' }));
+          for (const el of rows) run.push(el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-10px)' }], { duration: 150, easing: 'cubic-bezier(.3, 0, 1, 1)', fill: 'forwards' }));
+          foldBusy = Promise.all(run.map(a => a.finished.catch(() => {})));
+          await foldBusy;
+          foldBusy = null;
+        }
+      }
       ui.fold.add(mk); saveFold(); renderList();
     }
   }
@@ -1476,7 +1543,8 @@
     const prev = ui.current;
     if (prev && prev !== id) { destroyEditor(); pruneNote(prev); }
     ui.current = id;
-    view.tab = tab || 'nota';
+    const on = getNote(id);
+    view.tab = tab || (on ? secIds(on)[0] : 'nota');
     renderEditor();
     renderList();
     if (narrow()) {
@@ -1554,7 +1622,7 @@
     const n = getNote(ui.current);
     if (!n) { closeEditor(); return; }
     if (view.tab !== 'nota' && !n.transcripts.some(t => t.id === view.tab)) view.tab = 'nota';
-    const nav = h('div', { class: 'ed-nav' }, edBar(n), edTabs(n));
+    const nav = h('div', { class: 'ed-nav' }, edBar(n));
     const head = h('div', { class: 'ed-head' }, nav);
     const pane = h('div', { class: 'ed-pane' });
     $('#editor').replaceChildren(head, pane);
@@ -1617,7 +1685,7 @@
   /* ---------- Escritura centrada: el cursor queda cerca del 40% de la pantalla ---------- */
   function centerOn() { return !!PREF.center; }
   function centerCaret(smooth) {
-    if (!ED || !centerOn()) return;
+    if (!ED || !centerOn() || fmtTouched()) return;
     const v = ED.editor.view;
     if (!v.hasFocus()) return;
     const sc = $('#editor');
@@ -1646,19 +1714,32 @@
     sc.scrollBy({ top: delta, behavior: smooth ? 'smooth' : 'auto' });
   }
   let centerT = 0;
+  // Último toque en la barra de formato: por un momento nada mueve la pantalla hacia el cursor.
+  let fmtAt = 0;
+  const fmtTouched = () => Date.now() - fmtAt < 700;
   function centerSoon(smooth, ms = 180) {
     clearTimeout(centerT);
     centerT = setTimeout(() => centerCaret(smooth), ms);
   }
 
   function edBar(n) {
+    const cur = view.tab;
+    const multi = secIds(n).length > 1;
+    // Botón con la sección abierta: un toque abre las demás secciones y "+ Sección".
+    const pill = h('button', { class: 'sec-pill', id: 'sec-pill', type: 'button', 'aria-haspopup': 'menu', title: 'Cambiar de sección',
+      onclick: e => secMenu(n, e.currentTarget) },
+      h('span', { class: 'sec-pill-ic', html: secIcon(n, cur) }),
+      h('span', { class: 'sec-pill-l', text: secName(n, cur) }),
+      multi ? h('span', { class: 'sec-pill-n', text: String(secIds(n).length) }) : null,
+      h('span', { class: 'sec-pill-chev', html: I.chev }));
     return h('div', { class: 'ed-bar' },
       h('button', { class: 'btn ghost icon only-narrow', 'aria-label': 'Volver', html: I.back, onclick: goBack }),
       h('button', { class: 'btn ghost icon only-wide', id: 'focus-btn', title: PREF.focus ? 'Mostrar la lista de notas' : 'Modo foco: ocultar la lista de notas', 'aria-label': 'Modo foco', html: I.focus, onclick: toggleFocus }),
+      pill,
       h('span', { class: 'status', id: 'ed-status', text: 'Guardado' }),
       // En el celu, Apariencia y Copiar viven en el menú ⋯; en la PC quedan además a mano en la barra.
       h('button', { class: 'btn ghost icon only-wide', title: 'Apariencia y escritura', 'aria-label': 'Apariencia y escritura', html: '<span class="aa">Aa</span>', onclick: readingDialog }),
-      h('button', { class: 'btn ghost only-wide', title: 'Copiar esta nota como texto', onclick: () => exportDialog(n.id), html: I.copy + '<span class="label">Copiar para chat</span>' }),
+      h('button', { class: 'btn ghost only-wide', title: 'Compartir: copiar, descargar o enviar', 'aria-haspopup': 'menu', onclick: e => shareMenu(n, e.currentTarget), html: I.share + '<span class="label">Compartir</span>' }),
       h('button', { class: 'btn ghost icon', title: 'Más opciones', 'aria-label': 'Más opciones de la nota', 'aria-haspopup': 'menu', html: I.menu, onclick: e => noteMenu(n, e.currentTarget) })
     );
   }
@@ -1801,6 +1882,178 @@
     tabs.addEventListener('click', e => { if (tabDragEnd && Date.now() - tabDragEnd < 350) { tabDragEnd = 0; e.preventDefault(); e.stopPropagation(); } }, true);
   }
 
+  /* ---------- Secciones: ordenar, elegir la principal, agregar y borrar ---------- */
+  function sectionsSheet(n, toAdd) {
+    commitEditor();
+    const d = $('#dlg2');
+    let changed = false, armed = null;
+    const body = h('div', { class: 'secs', role: 'list' });
+    const draw = flip => {
+      const before = flip ? new Map([...body.querySelectorAll('.sec-row')].map(r => [r.dataset.id, r.getBoundingClientRect().top])) : null;
+      const ids = secIds(n);
+      body.replaceChildren(...ids.map((id, i) => {
+        const t = id === 'nota' ? null : n.transcripts.find(x => x.id === id);
+        const sub = t ? catName(catOf(t)) + ' · ' + wordsLabel(t.text) : 'Texto de la nota · ' + wordsLabel(n.text);
+        const isArmed = armed === id;
+        return h('div', { class: 'sec-row' + (i === 0 ? ' main' : ''), 'data-id': id, role: 'listitem' },
+          h('button', { class: 'sec-go', type: 'button', title: 'Abrir esta sección', onclick: () => { changed = false; d.close(); if (view.tab !== id) switchTab(n, id); else if (ui.current === n.id) renderEditor(); } },
+            h('span', { class: 'sec-ic', html: secIcon(n, id) }),
+            h('span', { class: 'sec-tx' },
+              h('span', { class: 'sec-n' }, secName(n, id), i === 0 ? h('span', { class: 'sec-badge', text: 'Principal' }) : null),
+              h('span', { class: 'sec-s', text: sub }))),
+          h('div', { class: 'sec-acts' },
+            i === 0 ? null : h('button', { class: 'sec-b', type: 'button', title: 'Hacer principal (se abre al entrar)', 'aria-label': 'Hacer principal', html: I.star, onclick: () => move(id, 0) }),
+            h('button', { class: 'sec-b', type: 'button', title: 'Subir', 'aria-label': 'Subir', html: I.up, disabled: i === 0, onclick: () => move(id, i - 1) }),
+            h('button', { class: 'sec-b', type: 'button', title: 'Bajar', 'aria-label': 'Bajar', html: I.down, disabled: i === ids.length - 1, onclick: () => move(id, i + 1) }),
+            id === 'nota' ? null : h('button', { class: 'sec-b del' + (isArmed ? ' armed' : ''), type: 'button', title: isArmed ? 'Tocá de nuevo para borrar' : 'Borrar sección', 'aria-label': isArmed ? 'Confirmar: borrar sección' : 'Borrar sección', onclick: () => del(id) },
+              isArmed ? h('span', { text: 'Borrar' }) : h('span', { class: 'sec-b-ic', html: I.trash }))));
+      }));
+      if (before && !calm()) for (const r of body.querySelectorAll('.sec-row')) {
+        const y0 = before.get(r.dataset.id);
+        const dy = y0 == null ? 0 : y0 - r.getBoundingClientRect().top;
+        if (dy) r.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.2, 0, 0, 1)' });
+      }
+    };
+    const move = (id, to) => {
+      const ids = secIds(n);
+      ids.splice(ids.indexOf(id), 1);
+      ids.splice(to, 0, id);
+      n.order = ids; armed = null; changed = true; touch(n);
+      draw(true);
+    };
+    const del = id => {
+      if (armed !== id) { armed = id; draw(); return; }
+      n.transcripts = n.transcripts.filter(x => x.id !== id);
+      if (Array.isArray(n.order)) n.order = n.order.filter(x => x !== id);
+      if (view.tab === id) view.tab = secIds(n)[0];
+      armed = null; changed = true; touch(n);
+      draw();
+      toast('Sección borrada.');
+    };
+    const add = cat => { changed = false; d.close(); addTranscript(n, '', '', cat); };
+    const input = h('input', { type: 'text', placeholder: 'Nueva categoría (ej. Resumen)', autocomplete: 'off', maxlength: '40', 'aria-label': 'Nueva categoría' });
+    const create = () => { const v = input.value.trim(); if (!v) { input.focus(); return; } add(addCat(v)); };
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
+    openDialog(d, 'Secciones', [
+      h('p', { class: 'muted small sec-hint', text: 'La primera es la principal: es la que se abre al entrar a la nota.' }),
+      body,
+      h('div', { class: 'sec-add' },
+        h('div', { class: 'f-label', text: 'Agregar sección' }),
+        h('div', { class: 'chips' }, allCatsForPick().map(c => h('button', { class: 'chip', type: 'button', onclick: () => add(c.id) }, h('span', { class: 'chip-l', text: '+ ' + c.name })))),
+        h('div', { class: 'row sec-new' }, input, h('button', { class: 'btn', type: 'button', text: 'Crear', onclick: create })))
+    ], [h('button', { class: 'btn primary', type: 'button', text: 'Listo', onclick: () => d.close() })]);
+    d.classList.add('sheet');
+    draw();
+    d.addEventListener('close', function onClose() {
+      if (d.open) return;
+      d.removeEventListener('close', onClose);
+      d.classList.remove('sheet');
+      if (changed && ui.current === n.id) renderEditor();
+    });
+    if (toAdd) setTimeout(() => { const a = d.querySelector('.sec-add'); if (a) a.scrollIntoView({ block: 'nearest' }); }, 60);
+  }
+
+  /* ---------- Importar información: un archivo (Word, texto o Markdown) a la nota o a una sección ---------- */
+  const IMPORT_ACCEPT = '.docx,.txt,.md,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  async function fileToHtml(f) {
+    if (/\.docx$/i.test(f.name)) return docxToHtml(f);
+    return plainToHtml(await f.text());
+  }
+  const baseName = f => f.name.replace(/\.(docx|txt|md)$/i, '');
+  function importInfo(n) {
+    commitEditor();
+    const d = $('#dlg2');
+    let files = [];
+    const curT = n.transcripts.find(t => t.id === view.tab);
+    let dest = curT ? catOf(curT) : 'nota';
+    const fileBox = h('div', { class: 'imp-files' });
+    const destBox = h('div', { class: 'chips' });
+    const info = h('p', { class: 'muted small' });
+    const go = h('button', { class: 'btn primary', type: 'button', text: 'Importar', disabled: true });
+    const pick = async () => { const f = await pickFile(IMPORT_ACCEPT, true); if (f.length) { files = f; draw(); } };
+    const newCat = h('input', { type: 'text', placeholder: 'Otra categoría nueva', autocomplete: 'off', maxlength: '40', 'aria-label': 'Nueva categoría' });
+    newCat.addEventListener('input', () => { if (newCat.value.trim()) dest = 'new'; else if (dest === 'new') dest = 'nota'; draw(); });
+    const draw = () => {
+      fileBox.replaceChildren(files.length
+        ? h('button', { class: 'imp-pick has', type: 'button', onclick: pick },
+            h('span', { class: 'imp-ic', html: I.docx }),
+            h('span', { class: 'imp-tx' }, h('span', { class: 'imp-n', text: files.length === 1 ? files[0].name : `${files.length} archivos` }), h('span', { class: 'imp-s', text: 'Tocá para cambiar' })))
+        : h('button', { class: 'imp-pick', type: 'button', onclick: pick },
+            h('span', { class: 'imp-ic', html: I.importi }),
+            h('span', { class: 'imp-tx' }, h('span', { class: 'imp-n', text: 'Elegir archivo' }), h('span', { class: 'imp-s', text: 'Word (.docx), texto (.txt) o Markdown (.md)' }))));
+      const opts = [['nota', 'Nota'], ...allCatsForPick().map(c => [c.id, c.name])];
+      destBox.replaceChildren(...opts.map(([id, name]) => {
+        const on = dest === id;
+        return h('button', { class: 'chip' + (on ? ' on' : ''), type: 'button', 'aria-pressed': String(on), onclick: () => { dest = id; newCat.value = ''; draw(); } },
+          h('span', { class: 'chip-ck', 'aria-hidden': 'true', html: CHECK }), h('span', { class: 'chip-l', text: name }));
+      }));
+      info.textContent = dest === 'nota' ? 'Se agrega al final del texto de la nota.' : files.length > 1 ? 'Se crea una sección nueva por cada archivo.' : 'Se crea una sección nueva con el contenido.';
+      go.disabled = !files.length;
+    };
+    go.onclick = async () => {
+      const list = files;
+      const cat = dest === 'new' ? addCat(newCat.value.trim()) : dest;
+      d.close();
+      toast('Importando…', 2000);
+      let ok = 0;
+      for (const f of list) {
+        let html;
+        try { html = await fileToHtml(f); } catch (e) { console.error(e); toast(`No se pudo leer ${f.name}: ${e.message || e}`, 5000); continue; }
+        if (!getNote(n.id)) return;
+        if (cat === 'nota') {
+          if (ui.current !== n.id) openNote(n.id, 'nota'); else if (view.tab !== 'nota') switchTab(n, 'nota');
+          if (!ED) continue;
+          if (!(n.text || '').trim() && !ED.editor.getText().trim()) ED.editor.commands.setContent(html);
+          else ED.editor.chain().focus('end', { scrollIntoView: false }).insertContent('<hr>' + html).run();
+          if (!n.title.trim()) { n.title = baseName(f); const t = $('.ed-title'); if (t) t.value = n.title; }
+        } else {
+          if (ui.current !== n.id) openNote(n.id);
+          addTranscript(n, '', baseName(f), cat);
+          if (!ED) continue;
+          ED.editor.commands.setContent(html);
+        }
+        ED.dirty = true; commitEditor(); touch(n); ok++;
+      }
+      if (ok) { renderEditor(); toast(ok === 1 ? 'Información importada.' : `${ok} archivos importados.`); }
+    };
+    openDialog(d, 'Importar información', [
+      fileBox,
+      h('div', { class: 'f-label imp-h', text: '¿Dónde va?' }),
+      destBox,
+      h('div', { class: 'row imp-new' }, newCat),
+      info
+    ], [h('button', { class: 'btn', type: 'button', text: 'Cancelar', onclick: () => d.close() }), go]);
+    draw();
+  }
+  // Desde el menú de la app: una nota nueva desde un archivo, o varias desde el texto ordenado por una IA.
+  function importStart() {
+    const d = $('#dlg2');
+    const opt = (icon, t, sub, fn) => h('button', { class: 'imp-opt', type: 'button', onclick: () => { d.close(); fn(); } },
+      h('span', { class: 'imp-ic', html: icon }), h('span', { class: 'imp-tx' }, h('span', { class: 'imp-n', text: t }), h('span', { class: 'imp-s', text: sub })),
+      h('span', { class: 'imp-go', html: I.chev }));
+    openDialog(d, 'Importar información', [
+      opt(I.note, 'Nota nueva desde un archivo', 'Word (.docx), texto (.txt) o Markdown (.md). Después podés sumarle secciones.', newNoteFromFiles),
+      opt(I.textin, 'Varias notas desde texto de una IA', 'El texto con el formato === NOTA === que arma una IA a partir de tus notas viejas.', importDialog),
+      h('p', { class: 'muted small', text: 'Para sumar algo a una nota que ya existe, abrila y usá ⋯, "Importar información".' })
+    ], [h('button', { class: 'btn', type: 'button', text: 'Cerrar', onclick: () => d.close() })]);
+  }
+  async function newNoteFromFiles() {
+    const files = await pickFile(IMPORT_ACCEPT, true);
+    if (!files.length) return;
+    toast('Leyendo…', 2000);
+    let made = 0;
+    for (const f of files) {
+      let html;
+      try { html = await fileToHtml(f); } catch (e) { console.error(e); toast(`No se pudo leer ${f.name}: ${e.message || e}`, 5000); continue; }
+      const n = newNote();
+      n.title = baseName(f);
+      const t = $('.ed-title'); if (t) { t.value = n.title; t.blur(); }
+      if (ED) { ED.editor.commands.setContent(html); ED.dirty = true; commitEditor(); }
+      touch(n); made++;
+    }
+    if (made) toast(made === 1 ? 'Nota creada.' : `${made} notas creadas.`);
+  }
+
   function pickSection(n) {
     const d = $('#dlg2');
     const go = cat => () => { d.close(); addTranscript(n, '', '', cat); };
@@ -1834,18 +2087,46 @@
   // lo de todos los días arriba, lo de agregar contenido en el medio y lo destructivo solo, al final y en rojo.
   function noteMenu(n, anchor) {
     const items = [
-      [I.copy, 'Copiar para chat', () => exportDialog(n.id)],
+      [I.share, 'Compartir', () => shareMenu(n, anchor)],
       [I.outline, 'Índice de títulos', () => { if (!ED) switchTab(n, 'nota'); outlineDialog(); }],
       [I.type, 'Apariencia y escritura', readingDialog],
       null,
-      [I.docx, 'Agregar desde Word (.docx)', () => docxIntoNote(n)],
-      [I.textin, 'Agregar transcripción (.txt)', () => txtTranscripts(n)],
+      [I.importi, 'Importar información', () => importInfo(n)],
+      [I.layers, 'Ordenar y agregar secciones', () => sectionsSheet(n)],
       null,
       [I.trash, 'Eliminar nota', () => deleteNote(n), 'danger']
     ];
     popMenu(anchor, n.title || 'Sin título', items);
   }
-  function popMenu(anchor, title, items) {
+  // Desplegable del botón de sección: las secciones en orden (la primera es la principal) y abajo "+ Sección".
+  function secMenu(n, anchor) {
+    commitEditor();
+    const ids = secIds(n);
+    const items = ids.map((id, i) => {
+      const t = id === 'nota' ? null : n.transcripts.find(x => x.id === id);
+      const sub = (i === 0 ? 'Principal · ' : '') + (t ? (t.name ? catName(catOf(t)) + ' · ' : '') + wordsLabel(t.text) : wordsLabel(n.text));
+      return [secIcon(n, id), secName(n, id), () => { if (view.tab !== id) switchTab(n, id); }, '', sub, view.tab === id];
+    });
+    items.push(null, [I.plus, 'Sección', () => sectionsSheet(n, true), 'add', 'Agregar, ordenar o elegir la principal']);
+    popMenu(anchor, '', items, { align: 'left' });
+  }
+  // Compartir una nota: lo rápido directo en el menú, y "Elegir qué incluir…" abre el diálogo completo.
+  function shareMenu(n, anchor) {
+    commitEditor();
+    const inc = { text: true, cats: new Set((n.transcripts || []).map(catOf)) };
+    const txt = () => noteToText(n, inc);
+    const fname = ext => ((n.title || 'nota').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || 'nota') + ext;
+    const items = [
+      [I.copy, 'Copiar texto', async () => toast(await copyText(txt()) ? 'Nota copiada. Lista para pegar en un chat.' : 'No se pudo copiar.'), '', 'Todas las secciones, listo para un chat'],
+      navigator.share ? [I.share, 'Enviar a otra app', async () => { try { await navigator.share({ title: n.title || 'Nota', text: txt() }); } catch { /* cancelado */ } }, '', 'WhatsApp, mail, Drive…'] : false,
+      [I.download, 'Descargar .txt', () => download(fname('.txt'), txt())],
+      [I.download, 'Descargar Markdown (.md)', () => download(fname('.md'), txt())],
+      null,
+      [I.tune, 'Elegir qué incluir…', () => exportDialog(n.id), '', 'Secciones, varias notas, fechas']
+    ].filter(x => x !== false);
+    popMenu(anchor, 'Compartir', items);
+  }
+  function popMenu(anchor, title, items, opts = {}) {
     const old = document.querySelector('dialog.pop');
     if (old) old.remove();
     const d = h('dialog', { class: 'pop', 'aria-label': title });
@@ -1860,10 +2141,13 @@
       if (after) { setTimeout(after, 0); after = null; }
       setTimeout(done, 130);
     };
+    // Cada ítem: [ícono, texto, acción, clase, subtítulo, marcado]
     const list = h('div', { class: 'pop-in', role: 'menu' },
       title ? h('div', { class: 'pop-t', text: title }) : null,
-      ...items.map(it => it ? h('button', { class: 'pop-i' + (it[3] ? ' ' + it[3] : ''), type: 'button', role: 'menuitem', onclick: () => close(it[2]) },
-        h('span', { class: 'pop-ic', html: it[0] }), h('span', { class: 'pop-l', text: it[1] })) : h('div', { class: 'pop-sep', role: 'separator' })));
+      ...items.map(it => it ? h('button', { class: 'pop-i' + (it[3] ? ' ' + it[3] : '') + (it[5] ? ' on' : ''), type: 'button', role: it[5] != null ? 'menuitemradio' : 'menuitem', 'aria-checked': it[5] != null ? String(!!it[5]) : null, onclick: () => close(it[2]) },
+        h('span', { class: 'pop-ic', html: it[0] }),
+        h('span', { class: 'pop-tx' }, h('span', { class: 'pop-l', text: it[1] }), it[4] ? h('span', { class: 'pop-s', text: it[4] }) : null),
+        it[5] ? h('span', { class: 'pop-ck', html: CHECK }) : null) : h('div', { class: 'pop-sep', role: 'separator' })));
     d.append(list);
     d.addEventListener('click', e => { if (e.target === d) close(); });
     d.addEventListener('cancel', e => { e.preventDefault(); close(); });
@@ -1876,9 +2160,10 @@
     let top = r.bottom + 6;
     if (top + hh > vh - 8) top = Math.max(8, r.top - hh - 6);
     d.style.top = top + 'px';
-    d.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + 'px';
-    d.style.transformOrigin = top < r.top ? 'bottom right' : 'top right';
-    list.querySelector('.pop-i').focus({ preventScroll: true });
+    const left = opts.align === 'left' ? r.left : r.right - w;
+    d.style.left = Math.max(8, Math.min(innerWidth - w - 8, left)) + 'px';
+    d.style.transformOrigin = (top < r.top ? 'bottom ' : 'top ') + (opts.align === 'left' ? 'left' : 'right');
+    (list.querySelector('.pop-i.on') || list.querySelector('.pop-i')).focus({ preventScroll: true });
     // Flechas para moverse con el teclado en la PC.
     list.addEventListener('keydown', e => {
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -1978,15 +2263,16 @@
         clearTimeout(ED.timer);
         ED.timer = setTimeout(commitEditor, 500);
         typedAt = Date.now();
-        if (centerOn()) { clearTimeout(centerT); requestAnimationFrame(() => centerCaret(false)); }
+        // Un cambio que viene de la barra de formato no centra el cursor: la pantalla se queda donde estás.
+        if (centerOn() && !fmtTouched()) { clearTimeout(centerT); requestAnimationFrame(() => centerCaret(false)); }
       },
       onSelectionUpdate: () => {
-        if (centerOn() && Date.now() - typedAt > 80) centerSoon(true, 220);
+        if (centerOn() && !fmtTouched() && Date.now() - typedAt > 80) centerSoon(true, 220);
       },
       onTransaction: () => updateFmtSoon(),
       onFocus: () => {
         document.body.classList.add('editing');
-        if (centerOn()) centerSoon(true, 350);
+        if (centerOn() && !fmtTouched()) centerSoon(true, 350);
       },
       onBlur: () => document.body.classList.remove('editing')
     });
@@ -2066,7 +2352,8 @@
       return b;
     };
     const sep = () => h('span', { class: 'fsep', 'aria-hidden': 'true' });
-    const c = e => e.chain().focus();
+    // Sin scrollIntoView: aplicar un formato no lleva la pantalla hasta el cursor (estás leyendo más arriba o más abajo).
+    const c = e => e.chain().focus(null, { scrollIntoView: false });
     const T = (k, label, title, fn) => { const b = B(k, label, title, fn); b.classList.add('tb'); return b; };
     const bar = h('div', { class: 'fmt-bar' + (PREF.fmtMin ? ' min' : ''), role: 'toolbar', 'aria-label': 'Formato' },
       T('tRowAdd', '+ Fila', 'Agregar fila debajo', e => c(e).addRowAfter().run()),
@@ -2104,11 +2391,14 @@
     // Un toque en cualquier parte de la barra (entre botones, en los separadores o justo al borde) es de la barra:
     // no mueve el cursor ni hace saltar la pantalla. Deslizarla de costado sigue funcionando.
     bar.addEventListener('mousedown', e => e.preventDefault());
-    bar.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') e.preventDefault(); });
+    bar.addEventListener('pointerdown', e => { fmtAt = Date.now(); clearTimeout(centerT); if (e.pointerType !== 'mouse') e.preventDefault(); });
+    bar.addEventListener('touchstart', () => { fmtAt = Date.now(); clearTimeout(centerT); }, { passive: true });
+    bar.addEventListener('scroll', () => { fmtAt = Date.now(); }, { passive: true });
     bar.addEventListener('click', e => e.stopPropagation());
     return bar;
   }
   function toggleFmtMin() {
+    fmtAt = Date.now();
     PREF.fmtMin = !PREF.fmtMin;
     savePrefs();
     const bar = ED && ED.fmt;
@@ -2116,7 +2406,6 @@
     bar.classList.toggle('min', PREF.fmtMin);
     if (!PREF.fmtMin) bar.scrollLeft = 0;
     play(bar, PREF.fmtMin ? 'm-fmin' : 'm-fmax');
-    centerSoon(true, 60);
   }
 
   function outlineDialog() {
@@ -2451,9 +2740,11 @@
   }
 
   /* ---------- Menús laterales: la app (izquierda) y la cuenta (derecha) ---------- */
-  function drawerItem(icon, text, fn, cls) {
+  // Ítems de los menús laterales, estilo ChatGPT: ícono, texto grande y, si hace falta, un valor a la derecha.
+  function drawerItem(icon, text, fn, cls, value) {
     return h('button', { class: 'dr-item' + (cls ? ' ' + cls : ''), type: 'button', onclick: () => { closeDrawer(); fn(); } },
-      h('span', { class: 'dr-ic', html: icon }), h('span', { class: 'dr-t', text }));
+      h('span', { class: 'dr-ic', html: icon }), h('span', { class: 'dr-t', text }),
+      value ? h('span', { class: 'dr-v', text: value }) : null);
   }
   function closeDrawer(ms = 180) {
     const d = $('#drawer');
@@ -2461,54 +2752,69 @@
     d.classList.remove('in', 'dragging');
     setTimeout(() => { if (d.open && !d.classList.contains('in')) d.close(); }, ms);
   }
+  // Pasar de un menú lateral al otro: se cierra uno y se abre el otro.
+  function swapDrawer(kind) { closeDrawer(); setTimeout(() => openDrawer(kind), 200); }
   function openDrawer(kind) {
     if (!S) return;
     const d = $('#drawer');
-    const Hd = t => h('div', { class: 'dr-h', text: t });
+    const sep = () => h('div', { class: 'dr-sep' });
     let body;
-    // Orden según buenas prácticas de menús: lo más usado arriba, agrupado por tema,
-    // y lo destructivo una sola vez, al final del menú de la cuenta y separado del resto.
+    // Orden según buenas prácticas de menús: lo más usado arriba, agrupado por tema con separadores finos,
+    // y lo destructivo una sola vez, al final del menú de la cuenta.
     if (kind === 'app') {
       body = [
-        h('div', { class: 'dr-head' },
-          h('span', { class: 'app-mark', html: I.app }),
-          h('div', { class: 'dr-title', text: 'TNote' })),
-        Hd('Notas'),
-        drawerItem(I.copy, 'Copiar o descargar notas como texto', () => exportDialog(null)),
-        drawerItem(I.docx, 'Nueva nota desde un archivo .docx', newNoteFromDocx),
-        drawerItem(I.textin, 'Importar notas desde texto', importDialog),
-        Hd('Ajustes'),
-        drawerItem(I.type, 'Apariencia y escritura', readingDialog),
-        drawerItem(I.tag, 'Categorías de secciones', catsDialog),
-        Hd('Respaldo'),
-        drawerItem(I.download, 'Descargar backup encriptado', exportBackup),
-        drawerItem(I.upload, 'Restaurar backup encriptado', importBackup),
-        h('p', { class: 'dr-foot', text: `TNote ${APP_VERSION} · ${liveNotes().length} notas en esta cuenta` })
+        h('div', { class: 'dr-top' },
+          h('div', { class: 'dr-brand' }, h('span', { class: 'app-mark', html: I.app }), h('span', { class: 'dr-title', text: 'TNote' })),
+          h('button', { class: 'dr-round', type: 'button', title: 'Buscar', 'aria-label': 'Buscar', html: I.search, onclick: () => { closeDrawer(); setTimeout(() => { const q = $('#search'); if (q) q.focus(); }, 200); } })),
+        h('div', { class: 'dr-list' },
+          drawerItem(I.share, 'Compartir notas', () => exportDialog(null)),
+          drawerItem(I.importi, 'Importar información', importStart),
+          sep(),
+          drawerItem(I.type, 'Apariencia y escritura', readingDialog),
+          drawerItem(I.tag, 'Categorías de secciones', catsDialog),
+          sep(),
+          drawerItem(I.download, 'Descargar backup', exportBackup),
+          drawerItem(I.upload, 'Restaurar backup', importBackup),
+          h('p', { class: 'dr-foot', text: `TNote ${APP_VERSION} · ${liveNotes().length} ${liveNotes().length === 1 ? 'nota' : 'notas'}` })),
+        h('div', { class: 'dr-bottom' },
+          h('button', { class: 'dr-cta', type: 'button', onclick: () => { closeDrawer(); setTimeout(newNote, 120); } }, h('span', { html: I.pen }), h('span', { text: 'Nota nueva' })),
+          h('button', { class: 'dr-me', type: 'button', title: 'Tu cuenta', 'aria-label': 'Tu cuenta', onclick: () => swapDrawer('acct') },
+            h('span', { class: 'av-l', text: initialOf(S.data.profile.name) })))
       ];
     } else {
       const conf = driveConfigured();
       const on = conf && driveOn();
+      const others = h('div', { class: 'dr-others' });
       body = [
-        h('div', { class: 'dr-head dr-acct' },
+        h('div', { class: 'dr-card' },
           h('span', { class: 'avatar big', 'data-state': conf ? syncVisual()[0] : '' }, h('span', { class: 'av-l', text: initialOf(S.data.profile.name) }), h('span', { class: 'av-dot' })),
           h('div', { class: 'dr-hx' },
             h('div', { class: 'dr-title', text: S.data.profile.name }),
-            h('div', { class: 'dr-sub', id: 'dr-sync', text: conf ? '' : 'Sin sincronizar' }))),
-        conf ? (on ? drawerItem(I.refresh, 'Sincronizar ahora', syncTap) : drawerItem(I.cloud2, 'Conectar Google Drive', connectDrive)) : null,
-        drawerItem(I.lock, 'Bloquear ahora', lock),
-        S.multi ? drawerItem(I.users, 'Cambiar de cuenta', lock) : null,
-        Hd('Seguridad'),
-        S.bioOk || S.bioOn ? drawerItem(I.finger, S.bioOn ? 'Desactivar el ingreso con huella' : 'Activar el ingreso con huella', bioFromMenu) : null,
-        drawerItem(I.timer, 'Bloqueo automático: ' + lockLabel(lockMin()), lockTimeDialog),
-        drawerItem(I.key, 'Cambiar contraseña', changePasswordDialog),
-        Hd('Esta cuenta'),
-        drawerItem(I.pen, 'Cambiar el nombre', renameDialog),
-        on ? drawerItem(I.unlink, 'Desconectar Google Drive', disconnectDrive) : null,
-        Hd('Este dispositivo'),
-        drawerItem(I.userplus, 'Agregar otra cuenta', newSessionDialog),
-        h('div', { class: 'dr-sep' }),
-        drawerItem(I.trash, 'Eliminar cuentas o datos…', dangerDialog, 'danger')
+            h('div', { class: 'dr-sub', id: 'dr-sync', text: conf ? '' : 'Solo en este dispositivo' })),
+          conf ? h('button', { class: 'dr-round', type: 'button', title: on ? 'Sincronizar ahora' : 'Conectar Google Drive', 'aria-label': on ? 'Sincronizar ahora' : 'Conectar Google Drive', html: on ? I.refresh : I.cloud2, onclick: () => { closeDrawer(); (on ? syncTap : connectDrive)(); } }) : null),
+        h('div', { class: 'dr-list' },
+          drawerItem(I.lock, 'Bloquear ahora', () => lock(S.sid, { noAuto: true })),
+          others,
+          drawerItem(I.userplus, 'Agregar otra cuenta', newSessionDialog),
+          sep(),
+          S.bioOk || S.bioOn ? drawerItem(I.finger, 'Ingreso con huella', bioFromMenu, '', S.bioOn ? 'Activado' : 'Desactivado') : null,
+          drawerItem(I.timer, 'Bloqueo automático', lockTimeDialog, '', lockLabel(lockMin())),
+          drawerItem(I.key, 'Cambiar contraseña', changePasswordDialog),
+          drawerItem(I.pen, 'Cambiar el nombre', renameDialog),
+          on ? drawerItem(I.unlink, 'Desconectar Google Drive', disconnectDrive) : null,
+          sep(),
+          drawerItem(I.trash, 'Eliminar cuentas o datos…', dangerDialog, 'danger'))
       ];
+      // Las otras cuentas del dispositivo, a un toque: se bloquea esta y se abre la elegida.
+      listSessions().then(list => {
+        const rest = list.filter(x => x.id !== S.sid);
+        if (!rest.length || !others.isConnected) return;
+        others.replaceChildren(h('div', { class: 'dr-h', text: 'Cambiar a' }), ...rest.map(x =>
+          h('button', { class: 'dr-item dr-acct-row', type: 'button', onclick: () => { closeDrawer(); lock(x.id); } },
+            h('span', { class: 'dr-av', text: sessLabel(x).trim().charAt(0).toUpperCase() || '·' }),
+            h('span', { class: 'dr-t', text: sessLabel(x) }),
+            h('span', { class: 'dr-v', html: I.chev }))));
+      }).catch(() => {});
     }
     d.className = 'drawer ' + (kind === 'app' ? 'left' : 'right');
     d.setAttribute('aria-label', kind === 'app' ? 'Menú de la app' : 'Tu cuenta');
@@ -2708,8 +3014,10 @@
     if (n.date) out += `Fecha: ${n.date}\n`;
     if ((n.tags || []).length) out += `Etiquetas: ${n.tags.join(', ')}\n`;
     const body = inc.text ? bump((n.text || '').trim(), 1) : '';
-    if (body) out += `\n${body}\n`;
-    for (const t of n.transcripts || []) {
+    for (const id of secIds(n)) {
+      if (id === 'nota') { if (body) out += `\n${body}\n`; continue; }
+      const t = n.transcripts.find(x => x.id === id);
+      if (!t) continue;
       const cat = catOf(t);
       if (!inc.cats.has(cat)) continue;
       const tx = (t.text || '').trim();
@@ -2856,7 +3164,7 @@
       toast('Archivo descargado, sin encriptar.');
     } });
 
-    openDialog(d, 'Copiar o descargar como texto', [
+    openDialog(d, 'Compartir', [
       radios, range, yearBox, pickBox,
       secBox,
       stats, preview,
@@ -3352,7 +3660,7 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
   }
 
   function sameContent(a, b) {
-    const pick = n => JSON.stringify([n.title, n.date, n.text, n.tags, (n.transcripts || []).map(t => [t.name, t.text, t.cat || ''])]);
+    const pick = n => JSON.stringify([n.title, n.date, n.text, n.tags, (n.transcripts || []).map(t => [t.name, t.text, t.cat || '']), n.order || null]);
     return pick(a) === pick(b);
   }
   function mergeRemote(remoteNotes) {
@@ -3505,6 +3813,8 @@ Los bloques TRANSCRIPCION y SECCION son opcionales y se pueden repetir en una mi
     }
     const line = document.getElementById('dr-sync');
     if (line && driveConfigured()) { const [st, name, why] = syncVisual(); line.dataset.state = st; line.textContent = 'Drive: ' + name; line.title = why; }
+    const big = document.querySelector('.dr-card .avatar');
+    if (big && driveConfigured()) big.dataset.state = syncVisual()[0];
   }
   setInterval(() => { if (G.state === 'ok') renderSync(); }, 30000);
 
