@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.10.0';
+  const APP_VERSION = '2.10.1';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -1678,6 +1678,7 @@
   }
   function destroyEditor() {
     if (!ED) return;
+    if (ED.fmt && ED.fmt.parentNode === document.body) ED.fmt.remove();
     commitEditor();
     try { ED.editor.destroy(); } catch { /* ya destruido */ }
     ED = null;
@@ -1835,7 +1836,10 @@
   function checkKeyboard() {
     if (innerWidth !== baseW) { baseW = innerWidth; baseH = innerHeight; }
     if (innerHeight > baseH) baseH = innerHeight;
-    const open = narrow() && baseH - innerHeight > 150;
+    const vv = window.visualViewport;
+    // Teclado que achica la página o que se apoya encima (según el celu): se miran las dos cosas.
+    const open = narrow() && (baseH - innerHeight > 150 || (!!vv && innerHeight - vv.height > 150));
+    placeFmt();
     const was = document.body.classList.contains('kbd');
     if (open === was) return;
     document.body.classList.toggle('kbd', open);
@@ -1844,7 +1848,15 @@
     if (open) centerSoon(true, 120);
   }
   addEventListener('resize', checkKeyboard);
-  if (window.visualViewport) visualViewport.addEventListener('resize', checkKeyboard);
+  if (window.visualViewport) { visualViewport.addEventListener('resize', checkKeyboard); visualViewport.addEventListener('scroll', placeFmt); }
+  // La barra de formato se apoya justo sobre el borde de arriba del teclado, mida lo que mida.
+  function placeFmt() {
+    const bar = ED && ED.fmt;
+    if (!bar || !bar.classList.contains('fmt-float')) return;
+    const vv = window.visualViewport;
+    const gap = vv ? Math.max(0, Math.round(innerHeight - (vv.offsetTop + vv.height))) : 0;
+    bar.style.bottom = gap + 'px';
+  }
 
   /* ---------- Escritura centrada: el cursor queda cerca del 40% de la pantalla ---------- */
   function centerOn() { return !!PREF.center; }
@@ -1879,7 +1891,7 @@
   }
   let centerT = 0;
   // Último toque en la barra de formato: por un momento nada mueve la pantalla hacia el cursor.
-  let fmtAt = 0;
+  let fmtAt = 0, blurT = 0;
   const fmtTouched = () => Date.now() - fmtAt < 700;
   function centerSoon(smooth, ms = 180) {
     clearTimeout(centerT);
@@ -2272,7 +2284,6 @@
       [I.type, 'Apariencia y escritura', readingDialog],
       null,
       [I.importi, 'Importar información', () => importInfo(n)],
-      [I.tag, 'Categorías de secciones', catsDialog],
       null,
       [I.trash, 'Eliminar nota', () => deleteNote(n), 'danger']
     ];
@@ -2288,7 +2299,8 @@
       const sub = (id === main ? 'Principal · ' : '') + (t ? (t.name ? catName(catOf(t)) + ' · ' : '') + wordsLabel(t.text) : wordsLabel(n.text));
       return [secIcon(n, id), secName(n, id), () => { if (view.tab !== id) switchTab(n, id); }, '', sub, view.tab === id];
     });
-    items.push(null, [I.plus, 'Sección', () => sectionsSheet(n, true), 'add', 'Agregar'], [I.layers, 'Editar secciones', () => sectionsSheet(n), '', 'Orden, principal e íconos']);
+    // Una sola entrada: la hoja de secciones ya tiene "Agregar sección" al final.
+    items.push(null, [I.layers, 'Secciones', () => sectionsSheet(n), 'add', 'Agregar, ordenar, principal e íconos']);
     popMenu(anchor, '', items, { align: 'left' });
   }
   // Compartir una nota: lo rápido directo en el menú, y "Elegir qué incluir…" abre el diálogo completo.
@@ -2412,7 +2424,10 @@
     const fmt = fmtBar();
     const bottom = fmtBottom();
     document.body.classList.toggle('fmt-bottom', bottom);
-    if (bottom) $('#editor').append(fmt); else head.append(fmt);
+    // En Android la barra vive fuera de la nota, colgada de la página: así ningún contenedor con scroll o con
+    // animación la corre de lugar, y un toque sobre ella nunca le llega al texto de abajo.
+    for (const old of document.querySelectorAll('body > .fmt-bar')) old.remove();
+    if (bottom) { fmt.classList.add('fmt-float'); document.body.append(fmt); requestAnimationFrame(placeFmt); } else head.append(fmt);
     const X = window.NotasEditor;
     const E = edExtensions();
     const legacy = target !== n && isPlainT(target);
@@ -2455,7 +2470,16 @@
         document.body.classList.add('editing');
         if (centerOn() && !fmtTouched()) centerSoon(true, 350);
       },
-      onBlur: () => document.body.classList.remove('editing')
+      // Al tocar o deslizar la barra de formato el texto puede perder el foco un instante: la barra no se esconde
+      // (si se escondiera, el próximo toque caería en el texto y movería el cursor). Se recupera el foco sin mover la pantalla.
+      onBlur: () => {
+        clearTimeout(blurT);
+        blurT = setTimeout(() => {
+          if (!ED || ED.editor.view.hasFocus()) return;
+          if (fmtTouched() && document.body.classList.contains('kbd')) { ED.editor.view.dom.focus({ preventScroll: true }); return; }
+          document.body.classList.remove('editing');
+        }, 250);
+      }
     });
     ED = { editor, note: n, target, dirty: false, timer: null, fmt, onText };
     updateFmt();
@@ -2573,7 +2597,8 @@
     // no mueve el cursor ni hace saltar la pantalla. Deslizarla de costado sigue funcionando.
     bar.addEventListener('mousedown', e => e.preventDefault());
     bar.addEventListener('pointerdown', e => { fmtAt = Date.now(); clearTimeout(centerT); if (e.pointerType !== 'mouse') e.preventDefault(); });
-    bar.addEventListener('touchstart', () => { fmtAt = Date.now(); clearTimeout(centerT); }, { passive: true });
+    bar.addEventListener('touchstart', e => { fmtAt = Date.now(); clearTimeout(centerT); e.stopPropagation(); }, { passive: true });
+    bar.addEventListener('touchend', e => e.stopPropagation());
     bar.addEventListener('scroll', () => { fmtAt = Date.now(); }, { passive: true });
     bar.addEventListener('click', e => e.stopPropagation());
     return bar;
