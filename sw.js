@@ -1,4 +1,4 @@
-const CACHE = 'notas-app-v2.10.2';
+const CACHE = 'notas-app-v2.10.3';
 // Las tipografías van en un caché aparte que no se borra al actualizar: se bajan una vez, cuando se eligen.
 const FONTS = 'notas-app-fonts-v1';
 const ASSETS = ['./', './index.html', './app.css', './app.js', './config.js', './vendor/editor.js', './vendor/mammoth.browser.min.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];

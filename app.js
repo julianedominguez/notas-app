@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.10.2';
+  const APP_VERSION = '2.10.3';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -2626,8 +2626,54 @@
     // no mueve el cursor ni hace saltar la pantalla. Deslizarla de costado sigue funcionando.
     bar.addEventListener('mousedown', e => e.preventDefault());
     bar.addEventListener('pointerdown', e => { fmtAt = Date.now(); clearTimeout(centerT); if (e.pointerType !== 'mouse') e.preventDefault(); });
-    bar.addEventListener('touchstart', e => { fmtAt = Date.now(); clearTimeout(centerT); e.stopPropagation(); }, { passive: true });
-    bar.addEventListener('touchend', e => e.stopPropagation());
+    // En el celu la barra maneja sus propios toques: el navegador no decide a quién le toca el gesto (en Android el
+    // primer toque después de abrir el teclado a veces terminaba en el texto). Un toque corto aprieta el botón y un
+    // deslizamiento mueve la barra, con inercia. Nada de esto llega al texto ni le saca el foco.
+    let tg = null, inertia = 0;
+    bar.addEventListener('touchstart', e => {
+      fmtAt = Date.now(); clearTimeout(centerT); cancelAnimationFrame(inertia);
+      e.stopPropagation();
+      if (e.cancelable) e.preventDefault();
+      const t = e.touches[0];
+      tg = { x: t.clientX, y: t.clientY, sl: bar.scrollLeft, moved: false, btn: e.target.closest('.fb'), pts: [[e.timeStamp, t.clientX]] };
+      if (tg.btn && !tg.btn.disabled) tg.btn.classList.add('press');
+    }, { passive: false });
+    bar.addEventListener('touchmove', e => {
+      if (!tg) return;
+      e.stopPropagation();
+      if (e.cancelable) e.preventDefault();
+      const t = e.touches[0];
+      const dx = t.clientX - tg.x;
+      if (!tg.moved && Math.abs(dx) > 8) { tg.moved = true; if (tg.btn) tg.btn.classList.remove('press'); }
+      if (tg.moved) bar.scrollLeft = tg.sl - dx;
+      tg.pts.push([e.timeStamp, t.clientX]);
+      while (tg.pts.length > 2 && e.timeStamp - tg.pts[0][0] > 90) tg.pts.shift();
+      fmtAt = Date.now();
+    }, { passive: false });
+    const endTouch = e => {
+      if (!tg) return;
+      e.stopPropagation();
+      if (e.cancelable) e.preventDefault();
+      const g = tg; tg = null;
+      if (g.btn) g.btn.classList.remove('press');
+      fmtAt = Date.now();
+      if (e.type === 'touchcancel') return;
+      if (!g.moved) { if (g.btn && !g.btn.disabled) g.btn.click(); return; }
+      // Inercia: sigue un poco con la velocidad del dedo y frena.
+      const [t0, x0] = g.pts[0], [t1, x1] = g.pts[g.pts.length - 1];
+      let v = t1 > t0 ? (x1 - x0) / (t1 - t0) : 0; // px/ms
+      if (calm() || Math.abs(v) < 0.15) return;
+      let last = performance.now();
+      const step = now => {
+        const dt = now - last; last = now;
+        bar.scrollLeft -= v * dt;
+        v *= Math.pow(0.994, dt);
+        if (Math.abs(v) > 0.03) inertia = requestAnimationFrame(step);
+      };
+      inertia = requestAnimationFrame(step);
+    };
+    bar.addEventListener('touchend', endTouch, { passive: false });
+    bar.addEventListener('touchcancel', endTouch, { passive: false });
     bar.addEventListener('scroll', () => { fmtAt = Date.now(); }, { passive: true });
     bar.addEventListener('click', e => e.stopPropagation());
     return bar;

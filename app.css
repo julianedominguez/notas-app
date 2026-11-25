@@ -1374,3 +1374,5 @@ body.fmt-bottom.kbd .ed-body, body.fmt-bottom.kbd:not(.center-on) .ed-body { pad
 :root { --fbar-on: #fff3cc; --fbar-on-ink: #5c4300; }
 @media (prefers-color-scheme: dark) { :root { --fbar-on: #3b3320; --fbar-on-ink: #ffd666; } }
 body.fmt-bottom .fmt-bar .fb.on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fbar-on-ink) 22%, transparent); }
+body.fmt-bottom .fmt-bar.fmt-float { touch-action: none; overscroll-behavior: contain; }
+body.fmt-bottom .fmt-bar .fb.press:not(:disabled) { background: var(--kbd-line); }
