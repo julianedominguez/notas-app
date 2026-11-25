@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const APP_VERSION = '2.9.0';
+  const APP_VERSION = '2.9.1';
   const KDF_ITER = 600000;
   const MIN_PASS = 8;
   const CFG = window.NOTAS_CONFIG || {};
@@ -1883,30 +1883,30 @@
   }
 
   /* ---------- Secciones: ordenar, elegir la principal, agregar y borrar ---------- */
+  // Hoja de secciones, como la edición de carpetas de Outlook: estrella a la izquierda (una sola principal,
+  // la que se abre al entrar) y manija ≡ a la derecha para arrastrar y ordenar. Borrar queda dentro de cada sección.
   function sectionsSheet(n, toAdd) {
     commitEditor();
     const d = $('#dlg2');
-    let changed = false, armed = null;
+    let changed = false;
     const body = h('div', { class: 'secs', role: 'list' });
     const draw = flip => {
       const before = flip ? new Map([...body.querySelectorAll('.sec-row')].map(r => [r.dataset.id, r.getBoundingClientRect().top])) : null;
       const ids = secIds(n);
       body.replaceChildren(...ids.map((id, i) => {
         const t = id === 'nota' ? null : n.transcripts.find(x => x.id === id);
-        const sub = t ? catName(catOf(t)) + ' · ' + wordsLabel(t.text) : 'Texto de la nota · ' + wordsLabel(n.text);
-        const isArmed = armed === id;
-        return h('div', { class: 'sec-row' + (i === 0 ? ' main' : ''), 'data-id': id, role: 'listitem' },
-          h('button', { class: 'sec-go', type: 'button', title: 'Abrir esta sección', onclick: () => { changed = false; d.close(); if (view.tab !== id) switchTab(n, id); else if (ui.current === n.id) renderEditor(); } },
+        const sub = (t ? catName(catOf(t)) : 'Texto de la nota') + ' · ' + wordsLabel(t ? t.text : n.text);
+        const main = i === 0;
+        return h('div', { class: 'sec-row' + (main ? ' main' : ''), 'data-id': id, role: 'listitem' },
+          h('button', { class: 'sec-star' + (main ? ' on' : ''), type: 'button', 'aria-pressed': String(main),
+            title: main ? 'Principal: se abre al entrar' : 'Marcar como principal', 'aria-label': main ? 'Sección principal' : 'Marcar como principal',
+            html: I.star, onclick: () => { if (!main) move(id, 0, true); } }),
+          h('button', { class: 'sec-go', type: 'button', title: 'Abrir esta sección', onclick: () => { d.close(); if (view.tab !== id) switchTab(n, id); else if (changed && ui.current === n.id) renderEditor(); } },
             h('span', { class: 'sec-ic', html: secIcon(n, id) }),
-            h('span', { class: 'sec-tx' },
-              h('span', { class: 'sec-n' }, secName(n, id), i === 0 ? h('span', { class: 'sec-badge', text: 'Principal' }) : null),
-              h('span', { class: 'sec-s', text: sub }))),
-          h('div', { class: 'sec-acts' },
-            i === 0 ? null : h('button', { class: 'sec-b', type: 'button', title: 'Hacer principal (se abre al entrar)', 'aria-label': 'Hacer principal', html: I.star, onclick: () => move(id, 0) }),
-            h('button', { class: 'sec-b', type: 'button', title: 'Subir', 'aria-label': 'Subir', html: I.up, disabled: i === 0, onclick: () => move(id, i - 1) }),
-            h('button', { class: 'sec-b', type: 'button', title: 'Bajar', 'aria-label': 'Bajar', html: I.down, disabled: i === ids.length - 1, onclick: () => move(id, i + 1) }),
-            id === 'nota' ? null : h('button', { class: 'sec-b del' + (isArmed ? ' armed' : ''), type: 'button', title: isArmed ? 'Tocá de nuevo para borrar' : 'Borrar sección', 'aria-label': isArmed ? 'Confirmar: borrar sección' : 'Borrar sección', onclick: () => del(id) },
-              isArmed ? h('span', { text: 'Borrar' }) : h('span', { class: 'sec-b-ic', html: I.trash }))));
+            h('span', { class: 'sec-tx' }, h('span', { class: 'sec-n', text: secName(n, id) }), h('span', { class: 'sec-s', text: sub }))),
+          h('span', { class: 'sec-grip', role: 'button', tabindex: '0', title: 'Arrastrar para ordenar', 'aria-label': `Mover ${secName(n, id)}. Flechas arriba y abajo para ordenar`,
+            onkeydown: e => { if (e.key === 'ArrowUp' && i > 0) { e.preventDefault(); move(id, i - 1); focusGrip(id); } else if (e.key === 'ArrowDown' && i < ids.length - 1) { e.preventDefault(); move(id, i + 1); focusGrip(id); } } },
+            h('span', { html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 9.5h14M5 14.5h14"/></svg>' })));
       }));
       if (before && !calm()) for (const r of body.querySelectorAll('.sec-row')) {
         const y0 = before.get(r.dataset.id);
@@ -1914,33 +1914,75 @@
         if (dy) r.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.2, 0, 0, 1)' });
       }
     };
-    const move = (id, to) => {
+    const focusGrip = id => { const g = body.querySelector(`.sec-row[data-id="${CSS.escape(id)}"] .sec-grip`); if (g) g.focus(); };
+    const move = (id, to, star) => {
       const ids = secIds(n);
       ids.splice(ids.indexOf(id), 1);
       ids.splice(to, 0, id);
-      n.order = ids; armed = null; changed = true; touch(n);
+      n.order = ids; changed = true; touch(n);
       draw(true);
+      if (star) { const s0 = body.querySelector('.sec-row .sec-star'); if (s0) play(s0, 'm-pop'); }
     };
-    const del = id => {
-      if (armed !== id) { armed = id; draw(); return; }
-      n.transcripts = n.transcripts.filter(x => x.id !== id);
-      if (Array.isArray(n.order)) n.order = n.order.filter(x => x !== id);
-      if (view.tab === id) view.tab = secIds(n)[0];
-      armed = null; changed = true; touch(n);
-      draw();
-      toast('Sección borrada.');
+    // Arrastre con la manija: la fila va pegada al dedo y las demás se corren para abrir el hueco.
+    let drag = null;
+    body.addEventListener('pointerdown', e => {
+      const grip = e.target.closest('.sec-grip');
+      if (!grip || e.button) return;
+      e.preventDefault();
+      const row = grip.closest('.sec-row');
+      grip.setPointerCapture(e.pointerId);
+      const rows = [...body.querySelectorAll('.sec-row')];
+      drag = { row, pid: e.pointerId, y0: e.clientY, h: row.offsetHeight + 2, from: rows.indexOf(row), to: rows.indexOf(row), rows, tops: rows.map(r => r.offsetTop) };
+      row.classList.add('lift');
+      body.classList.add('dragging');
+      if (navigator.vibrate) try { navigator.vibrate(12); } catch { /* sin vibración */ }
+    });
+    body.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.pid) return;
+      const dy = e.clientY - drag.y0;
+      drag.row.style.transform = `translateY(${dy}px)`;
+      const center = drag.tops[drag.from] + drag.h / 2 + dy;
+      let to = 0;
+      drag.tops.forEach((t, i) => { if (center > t + drag.h / 2) to = i; });
+      to = Math.max(0, Math.min(drag.rows.length - 1, center < drag.tops[0] ? 0 : to));
+      drag.to = to;
+      drag.rows.forEach((r, i) => {
+        if (r === drag.row) return;
+        let shift = 0;
+        if (drag.from < to && i > drag.from && i <= to) shift = -drag.h;
+        if (drag.from > to && i < drag.from && i >= to) shift = drag.h;
+        r.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    });
+    const drop = e => {
+      if (!drag || e.pointerId !== drag.pid) return;
+      const { row, from, to, rows } = drag;
+      drag = null;
+      body.classList.remove('dragging');
+      row.classList.remove('lift');
+      for (const r of rows) r.style.transform = '';
+      if (to !== from) move(row.dataset.id, to); else draw(true);
     };
+    body.addEventListener('pointerup', drop);
+    body.addEventListener('pointercancel', drop);
+
     const add = cat => { changed = false; d.close(); addTranscript(n, '', '', cat); };
-    const input = h('input', { type: 'text', placeholder: 'Nueva categoría (ej. Resumen)', autocomplete: 'off', maxlength: '40', 'aria-label': 'Nueva categoría' });
+    const input = h('input', { type: 'text', placeholder: 'Nombre de la categoría (ej. Resumen)', autocomplete: 'off', maxlength: '40', 'aria-label': 'Nueva categoría' });
     const create = () => { const v = input.value.trim(); if (!v) { input.focus(); return; } add(addCat(v)); };
     input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
+    const addBox = h('div', { class: 'sec-add', hidden: !toAdd },
+      h('div', { class: 'chips' }, allCatsForPick().map(c => h('button', { class: 'chip', type: 'button', onclick: () => add(c.id) }, h('span', { class: 'chip-l', text: c.name })))),
+      h('div', { class: 'row sec-new' }, input, h('button', { class: 'btn', type: 'button', text: 'Crear', onclick: create })));
+    const addLink = h('button', { class: 'sec-addlink', type: 'button', 'aria-expanded': String(!!toAdd), onclick: () => {
+      addBox.hidden = !addBox.hidden;
+      addLink.setAttribute('aria-expanded', String(!addBox.hidden));
+      if (!addBox.hidden) play(addBox, 'm-drop');
+    } }, h('span', { html: I.plus }), h('span', { text: 'Agregar sección' }));
     openDialog(d, 'Secciones', [
-      h('p', { class: 'muted small sec-hint', text: 'La primera es la principal: es la que se abre al entrar a la nota.' }),
+      h('p', { class: 'sec-hint' }, 'Tocá la ', h('span', { class: 'sec-hint-star', html: I.star }), ' para elegir la principal (la que se abre al entrar). Arrastrá ', h('b', { text: '≡' }), ' para ordenar.'),
       body,
-      h('div', { class: 'sec-add' },
-        h('div', { class: 'f-label', text: 'Agregar sección' }),
-        h('div', { class: 'chips' }, allCatsForPick().map(c => h('button', { class: 'chip', type: 'button', onclick: () => add(c.id) }, h('span', { class: 'chip-l', text: '+ ' + c.name })))),
-        h('div', { class: 'row sec-new' }, input, h('button', { class: 'btn', type: 'button', text: 'Crear', onclick: create })))
+      h('div', { class: 'sec-addhead' }, h('span', { class: 'f-label', text: 'Secciones nuevas' }), addLink),
+      addBox
     ], [h('button', { class: 'btn primary', type: 'button', text: 'Listo', onclick: () => d.close() })]);
     d.classList.add('sheet');
     draw();
@@ -1950,7 +1992,6 @@
       d.classList.remove('sheet');
       if (changed && ui.current === n.id) renderEditor();
     });
-    if (toAdd) setTimeout(() => { const a = d.querySelector('.sec-add'); if (a) a.scrollIntoView({ block: 'nearest' }); }, 60);
   }
 
   /* ---------- Importar información: un archivo (Word, texto o Markdown) a la nota o a una sección ---------- */
